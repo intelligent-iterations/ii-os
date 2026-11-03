@@ -14,7 +14,7 @@ dependencies:
     path: ../../ii_ffmpeg_universal
   ii_flutter_video_editor:
     path: ..
-  web: ^1.1.1
+  web: ^1.1.2
 
 dev_dependencies:
   flutter_lints: ^6.0.0
