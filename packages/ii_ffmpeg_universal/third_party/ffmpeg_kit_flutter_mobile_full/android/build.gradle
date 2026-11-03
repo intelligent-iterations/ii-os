@@ -1,0 +1,214 @@
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.11.1")
+    }
+}
+
+apply plugin: "com.android.library"
+
+import java.security.MessageDigest
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+
+def iiFfmpegArtifact = [
+    group: "com.antonkarpenko",
+    name: "ffmpeg-kit-full",
+    version: "2.2.1",
+    sha256: "073246a65f49e67a9bb1cf67ddc90aa30241546f2a70341f1c2c8ceb17f8a705",
+]
+def iiReleaseAarValue = System.getenv("II_FFMPEG_ANDROID_AAR")?.trim()
+def iiReleaseAarSha256 = System.getenv("II_FFMPEG_ANDROID_AAR_SHA256")?.trim()
+def iiDebugFallbackAllowed = System.getenv("II_FFMPEG_ALLOW_DEBUG_FALLBACK") == "true"
+def iiReleaseTaskRequested = gradle.startParameter.taskNames.any {
+    it.toLowerCase(Locale.ROOT).contains("release")
+}
+def iiReleaseAar = iiReleaseAarValue ? new File(iiReleaseAarValue) : null
+def iiReleaseMavenGroup = "com.antonkarpenko"
+def iiReleaseMavenName = "ffmpeg-kit-binary"
+def iiReleaseMavenRepo = null
+def iiReleaseCoordinate = null
+
+def iiSha256 = { File file ->
+    def digest = MessageDigest.getInstance("SHA-256")
+    file.withInputStream { input ->
+        byte[] buffer = new byte[1024 * 1024]
+        for (int count = input.read(buffer); count != -1; count = input.read(buffer)) {
+            digest.update(buffer, 0, count)
+        }
+    }
+    digest.digest().collect { String.format("%02x", it & 0xff) }.join()
+}
+
+if (iiReleaseAar == null && (!iiDebugFallbackAllowed || iiReleaseTaskRequested)) {
+    throw new GradleException(
+        "A source-attested II_FFMPEG_ANDROID_AAR is required. " +
+        "The checksum-pinned fallback may be enabled only for non-release " +
+        "development tasks with II_FFMPEG_ALLOW_DEBUG_FALLBACK=true."
+    )
+}
+if (iiReleaseAar != null) {
+    if (!iiReleaseAar.isAbsolute() ||
+            !iiReleaseAar.isFile() ||
+            Files.isSymbolicLink(iiReleaseAar.toPath()) ||
+            !(iiReleaseAarSha256 ==~ /[0-9a-f]{64}/)) {
+        throw new GradleException("Invalid local FFmpeg Android release artifact")
+    }
+    def actual = iiSha256(iiReleaseAar)
+    if (actual != iiReleaseAarSha256) {
+        throw new GradleException(
+            "Local FFmpeg Android artifact checksum mismatch: ${actual}"
+        )
+    }
+    iiReleaseMavenRepo = new File(
+        project.layout.buildDirectory.get().asFile,
+        "ffmpeg-kit-local-maven",
+    )
+    def moduleDirectory = new File(
+        iiReleaseMavenRepo,
+        "${iiReleaseMavenGroup.replace('.', '/')}/" +
+            "${iiReleaseMavenName}/${iiReleaseAarSha256}",
+    )
+    Files.createDirectories(moduleDirectory.toPath())
+    def moduleBase = "${iiReleaseMavenName}-${iiReleaseAarSha256}"
+    def stagedAar = new File(moduleDirectory, "${moduleBase}.aar")
+    if (stagedAar.exists()) {
+        if (!stagedAar.isFile() ||
+                Files.isSymbolicLink(stagedAar.toPath()) ||
+                iiSha256(stagedAar) != iiReleaseAarSha256) {
+            throw new GradleException("Invalid staged FFmpeg Android Maven artifact")
+        }
+    } else {
+        def partialAar = new File(
+            moduleDirectory,
+            "${moduleBase}.aar.partial-${System.nanoTime()}",
+        )
+        Files.copy(iiReleaseAar.toPath(), partialAar.toPath())
+        if (iiSha256(partialAar) != iiReleaseAarSha256) {
+            throw new GradleException("Staged FFmpeg Android artifact checksum mismatch")
+        }
+        Files.move(
+            partialAar.toPath(),
+            stagedAar.toPath(),
+            StandardCopyOption.ATOMIC_MOVE,
+        )
+    }
+    def pom = new File(moduleDirectory, "${moduleBase}.pom")
+    def expectedPom = """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>${iiReleaseMavenGroup}</groupId>
+  <artifactId>${iiReleaseMavenName}</artifactId>
+  <version>${iiReleaseAarSha256}</version>
+  <packaging>aar</packaging>
+</project>
+"""
+    if (pom.exists()) {
+        if (!pom.isFile() ||
+                Files.isSymbolicLink(pom.toPath()) ||
+                pom.getText("UTF-8") != expectedPom) {
+            throw new GradleException("Invalid staged FFmpeg Android Maven descriptor")
+        }
+    } else {
+        pom.setText(expectedPom, "UTF-8")
+    }
+    iiReleaseCoordinate = (
+        "${iiReleaseMavenGroup}:${iiReleaseMavenName}:${iiReleaseAarSha256}"
+    )
+}
+
+// This script is evaluated for the Flutter plugin subproject. Configure the
+// consumer build's root project graph so app configurations can resolve the
+// exact staged module as a transitive dependency of this plugin.
+rootProject.allprojects {
+    repositories {
+        if (iiReleaseMavenRepo != null) {
+            maven {
+                url = iiReleaseMavenRepo.toURI()
+                content {
+                    includeGroup(iiReleaseMavenGroup)
+                }
+            }
+        }
+        google()
+        mavenCentral()
+    }
+}
+
+configurations.configureEach { configuration ->
+    configuration.incoming.afterResolve {
+        def expectedArtifact = iiReleaseAar != null ? [
+            group: iiReleaseMavenGroup,
+            name: iiReleaseMavenName,
+            version: iiReleaseAarSha256,
+            sha256: iiReleaseAarSha256,
+        ] : iiFfmpegArtifact
+        def requested = configuration.allDependencies.any { dependency ->
+            dependency.group == expectedArtifact.group &&
+                    dependency.name == expectedArtifact.name
+        }
+        if (!requested) {
+            return
+        }
+        def matched = configuration.resolvedConfiguration.resolvedArtifacts.findAll { artifact ->
+            def id = artifact.moduleVersion.id
+            id.group == expectedArtifact.group &&
+                    artifact.name == expectedArtifact.name &&
+                    id.version == expectedArtifact.version
+        }
+        if (matched.size() != 1) {
+            throw new GradleException(
+                "Expected exactly one resolved FFmpeg Android artifact, found ${matched.size()}"
+            )
+        }
+        def actual = iiSha256(matched[0].file)
+        if (actual != expectedArtifact.sha256) {
+            throw new GradleException(
+                "FFmpeg Android artifact checksum mismatch: ${actual}"
+            )
+        }
+    }
+}
+
+android {
+    namespace = "com.antonkarpenko.ffmpegkit"
+
+    compileSdk = 35
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    defaultConfig {
+        minSdk = 24
+        versionCode 1
+        versionName "1.0.0"
+        consumerProguardFiles 'consumer-rules.pro'
+    }
+
+    dependencies {
+        implementation("androidx.annotation:annotation:1.9.1")
+        if (iiReleaseAar != null) {
+            implementation(iiReleaseCoordinate)
+        } else {
+            implementation("com.antonkarpenko:ffmpeg-kit-full:2.2.1")
+        }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
+}

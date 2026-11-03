@@ -1,0 +1,22 @@
+name: ii_os_design_system_example
+description: Visual gallery for the ii-os design system.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ii_os_design_system:
+    path: ..
+  lucide_icons_flutter: ^3.1.14+2
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true

@@ -1,0 +1,29 @@
+name: ii_flutter_video_editor_example
+description: Controlled multi-lane ii_flutter_video_editor example.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.1
+  flutter: '>=3.44.1'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ii_ffmpeg_universal:
+    path: ../../ii_ffmpeg_universal
+  ii_flutter_video_editor:
+    path: ..
+  web: ^1.1.1
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/desktop_engine/

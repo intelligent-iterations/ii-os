@@ -1,0 +1,311 @@
+{
+  "schema": 1,
+  "engine_version": "n8.1.2",
+  "build_recipe": {
+    "repository": "https://github.com/arthenica/ffmpeg-kit-next.git",
+    "revision": "3e223118e6e8fb6208693ecf3952e77cd096f587"
+  },
+  "android_wrapper": {
+    "repository": "https://github.com/sk3llo/ffmpeg_kit_flutter_android.git",
+    "revision": "f437b23c04b295cf3e4c26b5f7dec72ed4d270ab"
+  },
+  "host_build_tools": [
+    {
+      "name": "gperf",
+      "url": "https://ftp.gnu.org/gnu/gperf/gperf-3.1.tar.gz",
+      "sha256": "588546b945bba4b70b6a3a616e80b4ab466e3f33024a352fc2198112cdbb3ae2",
+      "root": "gperf-3.1",
+      "revision": "gperf-3.1",
+      "version": "3.1",
+      "license_paths": [
+        "COPYING"
+      ],
+      "platforms": [
+        "android",
+        "ios"
+      ]
+    },
+    {
+      "name": "meson",
+      "url": "https://github.com/mesonbuild/meson/releases/download/1.11.2/meson-1.11.2.tar.gz",
+      "sha256": "698feae069cef3ecd4d7aaf281d7df359bdfcf555a9a1564383d3b913fa8a736",
+      "root": "meson-1.11.2",
+      "revision": "1.11.2",
+      "version": "1.11.2",
+      "license_paths": [
+        "COPYING"
+      ],
+      "platforms": [
+        "ios"
+      ],
+      "build_kind": "python-script",
+      "entry_point": "meson.py",
+      "interpreter": "/usr/bin/python3"
+    }
+  ],
+  "toolchains": {
+    "android_compile_sdk": 35,
+    "android_java_version": 17,
+    "android_ndk_revision": "28.2.13676358",
+    "ios_minimum_version": "14.0",
+    "homebrew_core": {
+      "repository": "https://github.com/Homebrew/homebrew-core.git",
+      "revision": "0c364e67d88f88b0ab77805f8265ad44d4000bb6"
+    },
+    "apple_build_formulae": [
+      {"formula": "m4", "version": "1.4.21", "path": "Formula/m/m4.rb", "sha256": "79b4221c141d51a12b59824d0dd69e59c90ee582ca9451150ea973278e19fabf"},
+      {"formula": "gnu-sed", "version": "4.10", "path": "Formula/g/gnu-sed.rb", "sha256": "52b7e0e75010328f0970a201d8e457c40c83a9e82e41e9a5e5553696de51ad73"},
+      {"formula": "autoconf", "version": "2.73", "path": "Formula/a/autoconf.rb", "sha256": "036d4f18fa1b9072705af36ebc9c8d02700853c0149e04feeb0fc2232aecab96"},
+      {"formula": "automake", "version": "1.18.1", "path": "Formula/a/automake.rb", "sha256": "187e1f49c7831094765bc2630eef07270d5080670f67b3b4a610391cb73bd233"},
+      {"formula": "libtool", "version": "2.6.2", "path": "Formula/lib/libtool.rb", "sha256": "1b21318c46a9bba74d7013aef9d76ee0144f1b747aceecaa7ba92438462c3a79"},
+      {"formula": "pkgconf", "version": "3.0.3", "path": "Formula/p/pkgconf.rb", "sha256": "e8a83d03e08dd8766b2efdba02b6aff376a044cfb0176c03835f19d2903e48e2"},
+      {"formula": "cmake", "version": "4.4.0", "path": "Formula/c/cmake.rb", "sha256": "77c8c8678e3cb204f8245fb260ddd467c872cdc617a39c98e3ffe4dd6bf75758"},
+      {"formula": "ninja", "version": "1.13.2", "path": "Formula/n/ninja.rb", "sha256": "9f2c520d92ba7251740d59496b3bd262a88cb4d62672e4cc1674a448125fc768"}
+    ],
+    "apple_build_tools": [
+      {"formula": "m4", "executable": "m4", "version": "1.4.21"},
+      {"formula": "gnu-sed", "executable": "gsed", "version": "4.10"},
+      {"formula": "autoconf", "executable": "autoconf", "version": "2.73"},
+      {"formula": "automake", "executable": "automake", "version": "1.18.1"},
+      {"formula": "libtool", "executable": "glibtool", "version": "2.6.2"},
+      {"formula": "libtool", "executable": "glibtoolize", "version": "2.6.2"},
+      {"formula": "pkgconf", "executable": "pkg-config", "version": "3.0.3"},
+      {"formula": "cmake", "executable": "cmake", "version": "4.4.0"},
+      {"formula": "ninja", "executable": "ninja", "version": "1.13.2"}
+    ]
+  },
+  "sources": [
+    {
+      "name": "config",
+      "repository": "https://github.com/arthenica/gnu-config",
+      "revision": "805517123cbfe33d17c989a18e78c5789fab0437",
+      "recipe_source_id": "v20210814",
+      "license_paths": ["config.guess", "config.sub"],
+      "platforms": ["android", "ios"]
+    },
+    {
+      "name": "ffmpeg",
+      "repository": "https://github.com/arthenica/FFmpeg",
+      "revision": "38b88335f99e76ed89ff3c93f877fdefce736c13",
+      "recipe_source_id": "n8.1.2",
+      "platforms": ["android", "ios"]
+    },
+    {
+      "name": "fontconfig",
+      "repository": "https://github.com/arthenica/fontconfig",
+      "revision": "d87ec67db56518e9e9c36ff38f151dfc9b728b2e",
+      "recipe_source_id": "2.18.1",
+      "platforms": ["android", "ios"]
+    },
+    {
+      "name": "freetype",
+      "repository": "https://github.com/arthenica/freetype2",
+      "revision": "0a0221a1347e2f1e07c395263540026e9a0aa7c7",
+      "recipe_source_id": "VER-2-14-3",
+      "platforms": ["android", "ios"]
+    },
+    {
+      "name": "fribidi",
+      "repository": "https://github.com/arthenica/fribidi",
+      "revision": "68162babff4f39c4e2dc164a5e825af93bda9983",
+      "recipe_source_id": "v1.0.16",
+      "platforms": ["android", "ios"]
+    },
+    {
+      "name": "libass",
+      "repository": "https://github.com/arthenica/libass",
+      "revision": "bbb3c7f1570a4a021e52683f3fbdf74fe492ae84",
+      "recipe_source_id": "0.17.4",
+      "platforms": ["android", "ios"]
+    },
+    {
+      "name": "libiconv",
+      "repository": "https://github.com/arthenica/libiconv",
+      "revision": "4b9c27bec873392533dd3ef309cd62962a644e18",
+      "recipe_source_id": "v1.17",
+      "platforms": ["android"]
+    },
+    {
+      "name": "libpng",
+      "repository": "https://github.com/arthenica/libpng",
+      "revision": "3061454d980de7d53608f594194cfac722721d2a",
+      "recipe_source_id": "v1.6.58",
+      "platforms": ["android", "ios"]
+    },
+    {
+      "name": "libuuid",
+      "repository": "https://github.com/arthenica/libuuid",
+      "revision": "16cb58d558844045f217d4ee416f931fc1b03794",
+      "recipe_source_id": "libuuid-1.0.3",
+      "platforms": ["android"]
+    },
+    {
+      "name": "expat",
+      "repository": "https://github.com/arthenica/libexpat",
+      "revision": "c7ffbf3879f6aef7a7b020ef84ddb4ee00222b19",
+      "recipe_source_id": "R_2_8_1",
+      "platforms": ["android", "ios"]
+    },
+    {
+      "name": "harfbuzz",
+      "repository": "https://github.com/arthenica/harfbuzz",
+      "revision": "56feae4035bdd48f62ba2b8d8c16232d4d89b3a4",
+      "recipe_source_id": "14.2.1",
+      "platforms": ["android", "ios"]
+    },
+    {
+      "name": "cpu-features",
+      "repository": "https://github.com/arthenica/cpu_features",
+      "revision": "81d13c49649f0714dd41fb56bb246398b6584085",
+      "recipe_source_id": "v0.11.0",
+      "platforms": ["android"]
+    }
+  ],
+  "release_profile": {
+    "required_flags": [
+      "--disable-network",
+      "--disable-programs",
+      "--disable-static",
+      "--enable-shared",
+      "--enable-libass",
+      "--enable-libfontconfig",
+      "--enable-libfreetype",
+      "--enable-libfribidi",
+      "--enable-libharfbuzz",
+      "--enable-zlib"
+    ],
+    "forbidden_flags": [
+      "--enable-gpl",
+      "--enable-nonfree",
+      "--enable-gnutls",
+      "--enable-openssl",
+      "--enable-libx264",
+      "--enable-libx265",
+      "--enable-libxvid",
+      "--enable-libvidstab",
+      "--enable-librubberband"
+    ],
+    "android_system_libraries": [
+      "libandroid.so",
+      "libc.so",
+      "libcamera2ndk.so",
+      "libdl.so",
+      "liblog.so",
+      "libm.so",
+      "libmediandk.so",
+      "libz.so"
+    ],
+    "ios_system_libraries": [
+      "/System/Library/Frameworks/AVFoundation.framework/AVFoundation",
+      "/System/Library/Frameworks/Accelerate.framework/Accelerate",
+      "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox",
+      "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+      "/System/Library/Frameworks/CoreMedia.framework/CoreMedia",
+      "/System/Library/Frameworks/CoreVideo.framework/CoreVideo",
+      "/System/Library/Frameworks/Foundation.framework/Foundation",
+      "/System/Library/Frameworks/VideoToolbox.framework/VideoToolbox",
+      "/usr/lib/libSystem.B.dylib",
+      "/usr/lib/libbz2.1.0.dylib",
+      "/usr/lib/libc++.1.dylib",
+      "/usr/lib/libcharset.1.dylib",
+      "/usr/lib/libiconv.2.dylib",
+      "/usr/lib/libobjc.A.dylib",
+      "/usr/lib/libxml2.2.dylib",
+      "/usr/lib/libz.1.dylib"
+    ],
+    "android_package": "com.antonkarpenko.ffmpegkit.binary",
+    "android_abis": ["arm64-v8a", "armeabi-v7a", "x86", "x86_64"],
+    "android_libraries": {
+      "arm64-v8a": [
+        "libavcodec.so",
+        "libavdevice.so",
+        "libavfilter.so",
+        "libavformat.so",
+        "libavutil.so",
+        "libffmpegkit.so",
+        "libffmpegkit_abidetect.so",
+        "libswresample.so",
+        "libswscale.so"
+      ],
+      "armeabi-v7a": [
+        "libavcodec.so",
+        "libavcodec_neon.so",
+        "libavdevice.so",
+        "libavdevice_neon.so",
+        "libavfilter.so",
+        "libavfilter_neon.so",
+        "libavformat.so",
+        "libavformat_neon.so",
+        "libavutil.so",
+        "libavutil_neon.so",
+        "libffmpegkit.so",
+        "libffmpegkit_abidetect.so",
+        "libffmpegkit_armv7a_neon.so",
+        "libswresample.so",
+        "libswresample_neon.so",
+        "libswscale.so",
+        "libswscale_neon.so"
+      ],
+      "x86": [
+        "libavcodec.so",
+        "libavdevice.so",
+        "libavfilter.so",
+        "libavformat.so",
+        "libavutil.so",
+        "libffmpegkit.so",
+        "libffmpegkit_abidetect.so",
+        "libswresample.so",
+        "libswscale.so"
+      ],
+      "x86_64": [
+        "libavcodec.so",
+        "libavdevice.so",
+        "libavfilter.so",
+        "libavformat.so",
+        "libavutil.so",
+        "libffmpegkit.so",
+        "libffmpegkit_abidetect.so",
+        "libswresample.so",
+        "libswscale.so"
+      ]
+    },
+    "ios_slices": [
+      {
+        "identifier": "ios-arm64_arm64e",
+        "architectures": ["arm64", "arm64e"],
+        "platform": "ios"
+      },
+      {
+        "identifier": "ios-arm64_x86_64-simulator",
+        "architectures": ["arm64", "x86_64"],
+        "platform": "ios",
+        "variant": "simulator"
+      }
+    ],
+    "ios_libraries": [
+      "ffmpegkit",
+      "libavcodec",
+      "libavdevice",
+      "libavfilter",
+      "libavformat",
+      "libavutil",
+      "libswresample",
+      "libswscale"
+    ]
+  },
+  "consumed_artifacts": {
+    "android_full_2_2_1": {
+      "sha256": "073246a65f49e67a9bb1cf67ddc90aa30241546f2a70341f1c2c8ceb17f8a705"
+    },
+    "ios_full_8_1_2": {
+      "ffmpegkit": "49e64651d054226c89dd4c1db7ebf539f8f89f914ea16eb2c1455f7da0111894",
+      "libavcodec": "cc51cc4faec995ae7da69c254506b15948190132717e5f95844080153bf5797b",
+      "libavdevice": "40dfb7d807a018869bc996dc8c0cfdac6607f699764ffca2c6345262d4a71ca3",
+      "libavfilter": "a8cd456274a0b163cef9beb5f44e4b1f3c6965df8dbf3d69d278821cd2612526",
+      "libavformat": "54a82bfd57ca56e42b45c6161b214f6f8cb03cd592e522d3f0b837263356922a",
+      "libavutil": "c0fe643e627c4376ec828d4e1f36e94a7d76e7a86d2d661346199fab297495e7",
+      "libswresample": "6994edad7fbe472e265836ac4b33ef739f613a40d4e26505725e5d7d34087854",
+      "libswscale": "ac9f4efc200e8af1f1f5ab7341bb175302fc1bdb6da7617f272ce126e140353d"
+    }
+  }
+}

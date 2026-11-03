@@ -1,0 +1,28 @@
+name: ffmpeg_kit_flutter_new_full
+description: Mobile-only FFmpeg Kit adapter vendored for ii_ffmpeg_universal.
+repository: https://github.com/sk3llo/ffmpeg_kit_flutter/tree/full
+homepage: https://github.com/sk3llo/ffmpeg_kit_flutter
+version: 2.4.1+ii.1
+environment:
+  sdk: ^3.12.0
+  flutter: ">=3.44.0"
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.antonkarpenko.ffmpegkit
+        pluginClass: FFmpegKitFlutterPlugin
+      ios:
+        pluginClass: FFmpegKitFlutterPlugin
+
+dependencies:
+  ffmpeg_kit_flutter_platform_interface: ^0.2.1
+
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  plugin_platform_interface: ^2.1.8

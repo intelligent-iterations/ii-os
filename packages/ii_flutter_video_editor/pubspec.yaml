@@ -1,0 +1,26 @@
+name: ii_flutter_video_editor
+description: Callback-driven Flutter timeline editor over ii_ffmpeg_universal.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.12.1
+  flutter: '>=3.44.1'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ii_ffmpeg_universal:
+    path: ../ii_ffmpeg_universal
+  meta: ^1.17.0
+
+dev_dependencies:
+  crypto: ^3.0.7
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true

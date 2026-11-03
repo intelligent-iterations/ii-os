@@ -1,0 +1,26 @@
+# Copy to .github/workflows/quality.yml after reviewing runner cost and policy.
+name: ii-os quality
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Install Flutter from your reviewed toolchain
+        run: |
+          echo 'Replace this step with a SHA-pinned setup action or toolchain install.'
+          exit 1
+      - name: Run the public source gate
+        # The same script README.md, CONTRIBUTING.md, and the repository's own
+        # quality workflow run: every package, both audits, and a web build.
+        # The video render tests also need ffmpeg and ffprobe on PATH.
+        run: tool/public_quality_gate.sh

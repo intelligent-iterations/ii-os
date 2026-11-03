@@ -1,0 +1,10 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ii-os is API-first so workspace RBAC is evaluated by the Dart backend.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

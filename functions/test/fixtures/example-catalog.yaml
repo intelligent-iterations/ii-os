@@ -1,0 +1,398 @@
+schema_version: 1
+workflows:
+  - id: image-create
+    name: Z-Image Turbo
+    model: Z-Image Turbo
+    contract_version: 1
+    dispatch_workflow: .github/workflows/z-image-turbo-text-to-image.yml
+    inputs:
+      prompt:
+        type: string
+        required: true
+        max_length: 60000
+      aspect_ratio:
+        type: string
+        required: true
+        max_length: 8
+        allowed_values: ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3"]
+      model:
+        type: string
+        required: true
+        max_length: 32
+      seed:
+        type: number
+        required: false
+    outputs:
+      - kind: image
+        content_types: [image/png, image/jpeg, image/webp]
+        max_bytes: 52428800
+  - id: image-create-flux2-klein
+    name: FLUX.2 Klein
+    model: FLUX.2 Klein 4B
+    contract_version: 1
+    dispatch_workflow: .github/workflows/z-image-turbo-text-to-image.yml
+    inputs:
+      prompt:
+        type: string
+        required: true
+        max_length: 60000
+      aspect_ratio:
+        type: string
+        required: true
+        max_length: 8
+        allowed_values: ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3"]
+      model:
+        type: string
+        required: true
+        max_length: 32
+      seed:
+        type: number
+        required: false
+    outputs:
+      - kind: image
+        content_types: [image/png, image/jpeg, image/webp]
+        max_bytes: 52428800
+  - id: image-create-qwen-2512
+    name: Qwen Image 2512
+    model: Qwen Image 2512
+    contract_version: 1
+    dispatch_workflow: .github/workflows/z-image-turbo-text-to-image.yml
+    inputs:
+      prompt:
+        type: string
+        required: true
+        max_length: 60000
+      aspect_ratio:
+        type: string
+        required: true
+        max_length: 8
+        allowed_values: ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3"]
+      model:
+        type: string
+        required: true
+        max_length: 32
+      seed:
+        type: number
+        required: false
+    outputs:
+      - kind: image
+        content_types: [image/png, image/jpeg, image/webp]
+        max_bytes: 52428800
+  - id: image-edit
+    name: Z-Image Turbo ControlNet Edit
+    model: Z-Image Turbo ControlNet
+    contract_version: 1
+    dispatch_workflow: .github/workflows/z-image-edit.yml
+    inputs:
+      mode:
+        type: string
+        required: true
+        max_length: 8
+      source_asset_id:
+        type: string
+        required: true
+        max_length: 64
+      prompt:
+        type: string
+        required: true
+        max_length: 30000
+      control_strength:
+        type: number
+        required: true
+      seed:
+        type: number
+        required: false
+    outputs:
+      - kind: image
+        content_types: [image/png, image/jpeg, image/webp]
+        max_bytes: 52428800
+  - id: image-inpaint
+    name: Z-Image Turbo ControlNet Inpaint
+    model: Z-Image Turbo ControlNet
+    contract_version: 1
+    dispatch_workflow: .github/workflows/z-image-edit.yml
+    inputs:
+      mode:
+        type: string
+        required: true
+        max_length: 8
+      source_asset_id:
+        type: string
+        required: true
+        max_length: 64
+      prompt:
+        type: string
+        required: true
+        max_length: 4000
+      control_strength:
+        type: number
+        required: true
+      seed:
+        type: number
+        required: false
+      mask_x:
+        type: number
+        required: true
+      mask_y:
+        type: number
+        required: true
+      mask_width:
+        type: number
+        required: true
+      mask_height:
+        type: number
+        required: true
+    outputs:
+      - kind: image
+        content_types: [image/png, image/jpeg, image/webp]
+        max_bytes: 52428800
+  - id: image-edit-qwen-2511
+    name: Qwen Image Edit 2511 FP8 Mixed
+    model: Qwen Image Edit 2511 FP8 Mixed
+    contract_version: 1
+    dispatch_workflow: .github/workflows/qwen-image-edit.yml
+    inputs:
+      mode:
+        type: string
+        required: true
+        max_length: 8
+      source_asset_id:
+        type: string
+        required: true
+        max_length: 64
+      source_asset_id_2:
+        type: string
+        required: false
+        max_length: 64
+      source_asset_id_3:
+        type: string
+        required: false
+        max_length: 64
+      prompt:
+        type: string
+        required: true
+        max_length: 30000
+      control_strength:
+        type: number
+        required: true
+      seed:
+        type: number
+        required: false
+    outputs:
+      - kind: image
+        content_types: [image/png, image/jpeg, image/webp]
+        max_bytes: 52428800
+  - id: image-inpaint-qwen
+    name: Qwen Image InstantX Inpaint
+    model: Qwen Image InstantX Inpaint
+    contract_version: 1
+    dispatch_workflow: .github/workflows/qwen-image-edit.yml
+    inputs:
+      mode:
+        type: string
+        required: true
+        max_length: 8
+      source_asset_id:
+        type: string
+        required: true
+        max_length: 64
+      prompt:
+        type: string
+        required: true
+        max_length: 4000
+      control_strength:
+        type: number
+        required: true
+      seed:
+        type: number
+        required: false
+      mask_x:
+        type: number
+        required: false
+      mask_y:
+        type: number
+        required: false
+      mask_width:
+        type: number
+        required: false
+      mask_height:
+        type: number
+        required: false
+      mask_regions:
+        type: string
+        required: false
+        max_length: 4096
+    outputs:
+      - kind: image
+        content_types: [image/png, image/jpeg, image/webp]
+        max_bytes: 52428800
+  - id: image-to-video
+    name: LTX Image to Video
+    model: LTX 2.3
+    contract_version: 1
+    dispatch_workflow: .github/workflows/ltx-image-to-video.yml
+    inputs:
+      source_asset_id:
+        type: string
+        required: true
+        max_length: 64
+      prompt:
+        type: string
+        required: true
+        max_length: 8000
+      duration_seconds:
+        type: number
+        required: true
+        minimum: 2
+        maximum: 20
+        default: 5
+      orientation:
+        type: string
+        required: true
+        max_length: 16
+      fps:
+        type: number
+        required: true
+    outputs:
+      - kind: video
+        content_types: [video/mp4]
+        max_bytes: 2147483648
+  - id: text-to-video-minimax-h3
+    name: MiniMax H3 Audiovisual Studio
+    model: MiniMax H3
+    contract_version: 1
+    dispatch_workflow: .github/workflows/minimax-h3-text-to-video.yml
+    inputs:
+      prompt:
+        type: string
+        required: true
+        max_length: 7000
+      duration_seconds:
+        type: number
+        required: true
+        minimum: 4
+        maximum: 15
+        default: 15
+      orientation:
+        type: string
+        required: true
+        max_length: 16
+      fps:
+        type: number
+        required: true
+      performance_mode:
+        type: string
+        required: true
+        max_length: 16
+      generation_mode:
+        type: string
+        required: true
+        max_length: 40
+      reference_manifest:
+        type: string
+        required: true
+        max_length: 30000
+      edit_operation:
+        type: string
+        required: false
+        max_length: 40
+      identity_replacement_consent:
+        type: boolean
+        required: false
+    runtime_estimates:
+      - selector:
+          performance_mode: quality
+        duration_input: duration_seconds
+        baseline_output_seconds: 15
+        baseline_runtime_seconds: 1953
+        hardware: Example 24 GB GPU
+        measured_at: 2026-08-14
+      - selector:
+          performance_mode: turbo
+        duration_input: duration_seconds
+        baseline_output_seconds: 15
+        baseline_runtime_seconds: 900
+        hardware: Example 24 GB GPU
+        measured_at: 2026-08-14
+    outputs:
+      - kind: video
+        content_types: [video/mp4]
+        max_bytes: 2147483648
+  - id: song-create-acestep-xl-sft
+    name: ACE-Step Song
+    model: ACE-Step 1.5 Comfy Turbo / XL SFT
+    contract_version: 1
+    dispatch_workflow: .github/workflows/acestep-song-generation.yml
+    inputs:
+      prompt:
+        type: string
+        required: true
+        max_length: 4000
+      lyrics:
+        type: string
+        required: false
+        max_length: 30000
+      duration_seconds:
+        type: number
+        required: true
+      generation_profile:
+        type: string
+        required: false
+        max_length: 32
+      instrumental:
+        type: boolean
+        required: true
+      vocal_language:
+        type: string
+        required: true
+        max_length: 16
+      bpm:
+        type: number
+        required: false
+      key_scale:
+        type: string
+        required: false
+        max_length: 32
+      time_signature:
+        type: string
+        required: false
+        max_length: 4
+      seed:
+        type: number
+        required: false
+    outputs:
+      - kind: audio
+        content_types: [audio/mpeg, audio/wav]
+        max_bytes: 1073741824
+  - id: narration-create-chatterbox-tts
+    name: Chatterbox Narration
+    model: Chatterbox Turbo TTS
+    contract_version: 1
+    dispatch_workflow: .github/workflows/narration-generation.yml
+    inputs:
+      text:
+        type: string
+        required: true
+        max_length: 6000
+      voice_model:
+        type: string
+        required: false
+        max_length: 32
+      language:
+        type: string
+        required: false
+        max_length: 32
+      seed:
+        type: number
+        required: false
+      voice_reference_asset_id:
+        type: string
+        required: false
+        max_length: 64
+      voice_clone_consent:
+        type: boolean
+        required: false
+    outputs:
+      - kind: audio
+        content_types: [audio/mpeg, audio/wav]
+        max_bytes: 524288000

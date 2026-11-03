@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "id": "ii-os-project",
+  "width": 1280,
+  "height": 720,
+  "framesPerSecond": 30,
+  "durationMicros": 12000000,
+  "backgroundColor": "101014",
+  "output": {
+    "container": "webm",
+    "videoCodec": "vp9",
+    "audioCodec": "opus",
+    "videoBitrate": 3000000,
+    "audioBitrate": 96000
+  },
+  "lanes": [
+    {
+      "id": "video-lane",
+      "label": "Opening shot",
+      "kind": "video",
+      "muted": false,
+      "hidden": false,
+      "locked": true,
+      "clips": [
+        {
+          "id": "clip-a",
+          "kind": "video",
+          "linkGroupId": "pair-1",
+          "startMicros": 0,
+          "durationMicros": 4000000,
+          "mediaId": "media-1",
+          "sourceStartMicros": 1000000,
+          "sourceDurationMicros": 9000000,
+          "destination": {"x": 0.1, "y": 0.2, "width": 0.5, "height": 0.4},
+          "fit": "cover",
+          "opacity": 0.75
+        },
+        {
+          "id": "clip-b",
+          "kind": "video",
+          "linkGroupId": null,
+          "startMicros": 4000000,
+          "durationMicros": 4000000,
+          "mediaId": "media-2",
+          "sourceStartMicros": 0,
+          "sourceDurationMicros": 6000000,
+          "destination": {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0},
+          "fit": "contain",
+          "opacity": 1.0,
+          "transition": {
+            "kind": "slideFromLeft",
+            "durationMicros": 750000,
+            "color": "FFAA00"
+          }
+        }
+      ]
+    },
+    {
+      "id": "audio-lane",
+      "label": "Opening sound",
+      "kind": "audio",
+      "muted": true,
+      "hidden": false,
+      "locked": false,
+      "clips": [
+        {
+          "id": "clip-c",
+          "kind": "audio",
+          "linkGroupId": "pair-1",
+          "startMicros": 0,
+          "durationMicros": 4000000,
+          "mediaId": "media-1",
+          "sourceStartMicros": 1000000,
+          "sourceDurationMicros": 9000000,
+          "volume": 0.5
+        }
+      ]
+    },
+    {
+      "id": "caption-lane",
+      "label": "Subtitle",
+      "kind": "captions",
+      "muted": false,
+      "hidden": true,
+      "locked": false,
+      "clips": [
+        {
+          "id": "clip-d",
+          "kind": "caption",
+          "linkGroupId": null,
+          "startMicros": 0,
+          "durationMicros": 3000000,
+          "text": "Opening line",
+          "destination": {"x": 0.08, "y": 0.78, "width": 0.84, "height": 0.16},
+          "style": {
+            "fontSize": 42.0,
+            "fontWeight": 700,
+            "textColor": 4293848814,
+            "backgroundColor": 1711276032,
+            "horizontalPadding": 24.0,
+            "verticalPadding": 12.0,
+            "cornerRadius": 12.0,
+            "maxLines": 2,
+            "textAlign": "left",
+            "fontFamily": "Manrope"
+          }
+        }
+      ]
+    }
+  ]
+}

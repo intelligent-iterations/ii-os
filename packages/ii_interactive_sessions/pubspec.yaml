@@ -1,0 +1,15 @@
+name: ii_interactive_sessions
+description: Provider-neutral Dart protocol for bounded multiplayer terminal and UI sessions.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  crypto: ^3.0.7
+  web_socket_channel: ^3.0.3
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.29.0

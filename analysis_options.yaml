@@ -1,0 +1,16 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    # Build output vendors third-party package sources (including their tests),
+    # which the analyzer would otherwise walk. Excluding it keeps
+    # `flutter analyze` scoped to this package and cuts the run from ~10m to
+    # well under a minute.
+    - build/**
+    - .dart_tool/**
+    # Standalone packages own their package configs, lints, and
+    # tests. The repository gate enters each one explicitly below rather than
+    # analyzing its tests through the app's package config.
+    - packages/ii_interactive_sessions/**
+    - packages/ii_interactive_sessions_flutter/**
+    - packages/ii_ui_mcp/**

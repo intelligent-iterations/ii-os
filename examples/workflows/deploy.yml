@@ -1,0 +1,35 @@
+# Copy to .github/workflows/deploy.yml only after supplying your own deployment
+# adapter, cost ceilings, environment protection, and cleanup proof.
+name: ii-os deployment template
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Reviewed deployment environment
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ii-os-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Deliberately inert deployment adapter
+        run: |
+          echo 'Configure an implementation-owned deployment adapter first.'
+          exit 1

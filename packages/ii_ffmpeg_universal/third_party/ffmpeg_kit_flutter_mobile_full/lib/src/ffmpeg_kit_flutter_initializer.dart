@@ -1,0 +1,344 @@
+/*
+ * Copyright (c) 2019-2021 Taner Sener
+ *
+ * This file is part of FFmpegKit.
+ *
+ * FFmpegKit is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * FFmpegKit is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with FFmpegKit.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+// ignore_for_file: lines_longer_than_80_chars
+
+import 'dart:io';
+
+import 'package:ffmpeg_kit_flutter_platform_interface/ffmpeg_kit_flutter_platform_interface.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../ffmpeg_kit_config.dart';
+import '../ffmpeg_session.dart';
+import '../ffmpeg_session_complete_callback.dart';
+import '../ffprobe_session.dart';
+import '../ffprobe_session_complete_callback.dart';
+import '../level.dart';
+import '../log_callback.dart';
+import '../log_redirection_strategy.dart';
+import '../media_information_session.dart';
+import '../media_information_session_complete_callback.dart';
+import '../session.dart';
+import '../statistics.dart';
+import '../statistics_callback.dart';
+import 'ffmpeg_kit_factory.dart';
+
+class FFmpegKitInitializer {
+  static FFmpegKitPlatform _platform = FFmpegKitPlatform.instance;
+  static const EventChannel _eventChannel = const EventChannel(
+    'flutter.arthenica.com/ffmpeg_kit_event',
+  );
+
+  static FFmpegKitInitializer _instance = new FFmpegKitInitializer();
+
+  static bool _initialized = false;
+  static Future<bool>? _initializing;
+
+  static Future<bool> initialize() {
+    if (_initialized) return Future.value(true);
+    final current = _initializing;
+    if (current != null) return current;
+    final started = _instance._initialize().then((_) {
+      _initialized = true;
+      return true;
+    });
+    _initializing = started;
+    return started.whenComplete(() {
+      if (identical(_initializing, started)) _initializing = null;
+    });
+  }
+
+  void _onEvent(dynamic event) {
+    if (event is Map<dynamic, dynamic>) {
+      final Map<String, dynamic> eventMap = event.cast<String, dynamic>();
+      final Map<dynamic, dynamic>? logEvent =
+          eventMap['FFmpegKitLogCallbackEvent'];
+      final Map<dynamic, dynamic>? statisticsEvent =
+          eventMap['FFmpegKitStatisticsCallbackEvent'];
+      final Map<dynamic, dynamic>? completeEvent =
+          eventMap['FFmpegKitCompleteCallbackEvent'];
+
+      if (logEvent != null) {
+        _processLogCallbackEvent(logEvent);
+      }
+
+      if (statisticsEvent != null) {
+        _processStatisticsCallbackEvent(statisticsEvent);
+      }
+
+      if (completeEvent != null) {
+        _processCompleteCallbackEvent(completeEvent);
+      }
+    }
+  }
+
+  void _onError(Object error) {
+    print('Event error: $error');
+  }
+
+  void _processLogCallbackEvent(Map<dynamic, dynamic> event) {
+    final log = FFmpegKitFactory.mapToLog(event);
+    final int sessionId = event["sessionId"];
+    final int level = event["level"];
+    final String text = event["message"];
+    final int activeLogLevel = FFmpegKitConfig.getLogLevel();
+    var globalCallbackDefined = false;
+    var sessionCallbackDefined = false;
+    LogRedirectionStrategy activeLogRedirectionStrategy =
+        FFmpegKitConfig.getLogRedirectionStrategy();
+
+    // avLogStderr logs are always redirected
+    if ((activeLogLevel == Level.avLogQuiet && level != Level.avLogStderr) ||
+        level > activeLogLevel) {
+      // LOG NEITHER PRINTED NOR FORWARDED
+      return;
+    }
+
+    activeLogRedirectionStrategy =
+        FFmpegKitFactory.getLogRedirectionStrategy(sessionId) ??
+        activeLogRedirectionStrategy;
+    final LogCallback? logCallback = FFmpegKitFactory.getLogCallback(sessionId);
+
+    if (logCallback != null) {
+      sessionCallbackDefined = true;
+
+      try {
+        // NOTIFY SESSION CALLBACK DEFINED
+        logCallback(log);
+      } on Exception catch (e, stack) {
+        print("Exception thrown inside session log callback. $e");
+        print(stack);
+      }
+    }
+
+    final globalLogCallbackFunction = FFmpegKitFactory.getGlobalLogCallback();
+    if (globalLogCallbackFunction != null) {
+      globalCallbackDefined = true;
+
+      try {
+        // NOTIFY GLOBAL CALLBACK DEFINED
+        globalLogCallbackFunction(log);
+      } on Exception catch (e, stack) {
+        print("Exception thrown inside global log callback. $e");
+        print(stack);
+      }
+    }
+
+    // EXECUTE THE LOG STRATEGY
+    switch (activeLogRedirectionStrategy) {
+      case LogRedirectionStrategy.neverPrintLogs:
+        {
+          return;
+        }
+      case LogRedirectionStrategy.printLogsWhenGlobalCallbackNotDefined:
+        {
+          if (globalCallbackDefined) {
+            return;
+          }
+        }
+        break;
+      case LogRedirectionStrategy.printLogsWhenSessionCallbackNotDefined:
+        {
+          if (sessionCallbackDefined) {
+            return;
+          }
+        }
+        break;
+      case LogRedirectionStrategy.printLogsWhenNoCallbacksDefined:
+        {
+          if (globalCallbackDefined || sessionCallbackDefined) {
+            return;
+          }
+        }
+        break;
+      case LogRedirectionStrategy.alwaysPrintLogs:
+        {}
+        break;
+    }
+
+    // PRINT LOGS
+    switch (level) {
+      case Level.avLogQuiet:
+        {
+          // PRINT NO OUTPUT
+        }
+        break;
+      default:
+        {
+          stdout.write(text);
+        }
+    }
+  }
+
+  void _processStatisticsCallbackEvent(Map<dynamic, dynamic> event) {
+    final Statistics statistics = FFmpegKitFactory.mapToStatistics(event);
+    final int sessionId = event["sessionId"];
+
+    final StatisticsCallback? statisticsCallback =
+        FFmpegKitFactory.getStatisticsCallback(sessionId);
+    if (statisticsCallback != null) {
+      try {
+        // NOTIFY SESSION CALLBACK DEFINED
+        statisticsCallback(statistics);
+      } on Exception catch (e, stack) {
+        print("Exception thrown inside session statistics callback. $e");
+        print(stack);
+      }
+    }
+
+    final globalStatisticsCallbackFunction =
+        FFmpegKitFactory.getGlobalStatisticsCallback();
+    if (globalStatisticsCallbackFunction != null) {
+      try {
+        // NOTIFY GLOBAL CALLBACK DEFINED
+        globalStatisticsCallbackFunction(statistics);
+      } on Exception catch (e, stack) {
+        print("Exception thrown inside global statistics callback. $e");
+        print(stack);
+      }
+    }
+  }
+
+  void _processCompleteCallbackEvent(Map<dynamic, dynamic> event) {
+    final int sessionId = event["sessionId"];
+    final Session session = FFmpegKitFactory.mapToSession(event);
+    Future<void>.sync(() {
+      if (session.isFFmpeg()) {
+        final ffmpegSession = session as FFmpegSession;
+        final FFmpegSessionCompleteCallback? completeCallback = ffmpegSession
+            .getCompleteCallback();
+
+        if (completeCallback != null) {
+          try {
+            // NOTIFY SESSION CALLBACK DEFINED
+            completeCallback(ffmpegSession);
+          } on Exception catch (e, stack) {
+            print("Exception thrown inside session complete callback. $e");
+            print(stack);
+          }
+        }
+
+        final globalFFmpegSessionCompleteCallback =
+            FFmpegKitFactory.getGlobalFFmpegSessionCompleteCallback();
+        if (globalFFmpegSessionCompleteCallback != null) {
+          try {
+            // NOTIFY GLOBAL CALLBACK DEFINED
+            globalFFmpegSessionCompleteCallback(ffmpegSession);
+          } on Exception catch (e, stack) {
+            print("Exception thrown inside global complete callback. $e");
+            print(stack);
+          }
+        }
+      } else if (session.isFFprobe()) {
+        final ffprobeSession = session as FFprobeSession;
+        final FFprobeSessionCompleteCallback? completeCallback = ffprobeSession
+            .getCompleteCallback();
+
+        if (completeCallback != null) {
+          try {
+            // NOTIFY SESSION CALLBACK DEFINED
+            completeCallback(ffprobeSession);
+          } on Exception catch (e, stack) {
+            print("Exception thrown inside session complete callback. $e");
+            print(stack);
+          }
+        }
+
+        final globalFFprobeSessionCompleteCallback =
+            FFmpegKitFactory.getGlobalFFprobeSessionCompleteCallback();
+        if (globalFFprobeSessionCompleteCallback != null) {
+          try {
+            // NOTIFY GLOBAL CALLBACK DEFINED
+            globalFFprobeSessionCompleteCallback(ffprobeSession);
+          } on Exception catch (e, stack) {
+            print("Exception thrown inside global complete callback. $e");
+            print(stack);
+          }
+        }
+      } else if (session.isMediaInformation()) {
+        final mediaInformationSession = session as MediaInformationSession;
+        final MediaInformationSessionCompleteCallback? completeCallback =
+            mediaInformationSession.getCompleteCallback();
+
+        if (completeCallback != null) {
+          try {
+            // NOTIFY SESSION CALLBACK DEFINED
+            completeCallback(mediaInformationSession);
+          } on Exception catch (e, stack) {
+            print("Exception thrown inside session complete callback. $e");
+            print(stack);
+          }
+        }
+
+        final globalMediaInformationSessionCompleteCallback =
+            FFmpegKitFactory.getGlobalMediaInformationSessionCompleteCallback();
+        if (globalMediaInformationSessionCompleteCallback != null) {
+          try {
+            // NOTIFY GLOBAL CALLBACK DEFINED
+            globalMediaInformationSessionCompleteCallback(
+              mediaInformationSession,
+            );
+          } on Exception catch (e, stack) {
+            print("Exception thrown inside global complete callback. $e");
+            print(stack);
+          }
+        }
+      }
+    }).whenComplete(() => FFmpegKitFactory.clearSessionCallbacks(sessionId));
+  }
+
+  Future<int?> _getLogLevel() async {
+    try {
+      // const MethodChannel _channel =
+      // const MethodChannel('flutter.arthenica.com/ffmpeg_kit');
+      // return await _channel.invokeMethod<int>('getLogLevel');
+
+      return _platform.ffmpegKitFlutterInitializerGetLogLevel();
+    } on PlatformException catch (e, stack) {
+      print("Plugin _getLogLevel error: ${e.message}");
+      return Future.error("_getLogLevel failed.", stack);
+    }
+  }
+
+  Future<void> _initialize() async {
+    debugPrint("Loading ffmpeg-kit-flutter.");
+
+    final logLevel = await _getLogLevel();
+    if (logLevel != null) {
+      FFmpegKitConfig.setLogLevel(logLevel);
+    }
+
+    // Bootstrap must call the platform interface directly. The public
+    // FFmpegKitConfig/ArchDetect/Packages wrappers all call init(), which
+    // would otherwise await the same in-flight initializer and deadlock.
+    final version = FFmpegKitFactory.getVersion();
+    final platform = await _platform.ffmpegKitConfigGetPlatform();
+    final arch = await _platform.archDetectGetArch();
+    final packageName = await _platform.getPackageName();
+    await _platform.ffmpegKitConfigEnableRedirection();
+    final isLTSPostfix = (await _platform.ffmpegKitConfigIsLTSBuild() ?? false)
+        ? "-lts"
+        : "";
+
+    final fullVersion = "$platform-$packageName-$arch-$version$isLTSPostfix";
+    _eventChannel.receiveBroadcastStream().listen(_onEvent, onError: _onError);
+    print("Loaded ffmpeg-kit-flutter-$fullVersion.");
+  }
+}

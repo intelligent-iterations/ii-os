@@ -1,0 +1,17 @@
+{
+  "classification": "synthetic",
+  "timelineVersion": 1,
+  "producerCommit": "0000000000000000000000000000000000000000",
+  "producerDate": "2026-08-24T00:00:00Z",
+  "codecSha256": "a7e92b41e91ed614f232cf472e17a7cd664bbd5c072144757e92cdb9100de33d",
+  "declaredPackageRevision": "0000000000000000000000000000000000000000",
+  "construction": "Manually transcribed from the released v1 _project builder and encodeEditorTimeline field contract. Source revisions are recorded as placeholders.",
+  "verificationCommand": "flutter test test/editor_timeline_migrations_test.dart",
+  "fixtureSha256": "3e60293cb05f22b1da2d741fd33a048f4b5b9f0c16de898b5d7a3c12e3d2e817",
+  "expectedCurrentSha256": "3e60293cb05f22b1da2d741fd33a048f4b5b9f0c16de898b5d7a3c12e3d2e817",
+  "claims": [
+    "representative synthetic v1 shape compatibility",
+    "two media ids, transition, edit link, lane flags, transform, caption style"
+  ],
+  "doesNotClaim": ["real media decoding", "platform execution", "provider behavior"]
+}

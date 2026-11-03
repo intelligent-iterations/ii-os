@@ -1,0 +1,3 @@
+void notifyIiOsFirstFrame() {}
+
+void notifyIiOsStartupFailure() {}
