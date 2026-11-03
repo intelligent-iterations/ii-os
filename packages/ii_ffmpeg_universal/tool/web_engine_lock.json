@@ -1,0 +1,130 @@
+{
+  "schema": 1,
+  "engine_version": "n5.1.10",
+  "compatibility": {
+    "reason": "FFmpeg 6 and later use a threaded CLI scheduler; the reviewed browser profile intentionally remains single-threaded.",
+    "native_engine_version": "n8.1.2"
+  },
+  "toolchain": {
+    "name": "emsdk",
+    "repository": "https://github.com/emscripten-core/emsdk.git",
+    "revision": "f30b1cf866432514092b9843d171dbbee397ed50",
+    "version": "3.1.41",
+    "license_paths": [
+      "LICENSE"
+    ]
+  },
+  "sources": [
+    {
+      "name": "ffmpeg",
+      "url": "https://ffmpeg.org/releases/ffmpeg-5.1.10.tar.xz",
+      "sha256": "392306d6fc45dab0e9e0ea55381e071842e83a2fb31d320aeda40477a7766293",
+      "root": "ffmpeg-5.1.10",
+      "revision": "19feb712f5c1821d8a3fa1ad63c5bd2e3b9672eb",
+      "license_paths": ["LICENSE.md", "COPYING.LGPLv2.1", "COPYING.LGPLv3"]
+    },
+    {
+      "name": "ffmpeg-wasm",
+      "url": "https://codeload.github.com/ffmpegwasm/ffmpeg.wasm/tar.gz/f876f907c7e9b9bf51d4ed0b913a855a63ae63fc",
+      "sha256": "5191762afdd8fdbec457fd2650cc773fcebcfe1d5bcb7e5ee9584e1a78bd3d5b",
+      "root": "ffmpeg.wasm-f876f907c7e9b9bf51d4ed0b913a855a63ae63fc",
+      "revision": "f876f907c7e9b9bf51d4ed0b913a855a63ae63fc",
+      "license_paths": ["LICENSE"]
+    },
+    {
+      "name": "ffmpeg-client",
+      "url": "https://registry.npmjs.org/@ffmpeg/ffmpeg/-/ffmpeg-0.12.15.tgz",
+      "sha256": "c8a23365fb39b46d3d1d9baa2e74b522d00ce5d57e8b20471ad2665eaad38e3e",
+      "root": "package",
+      "revision": "0.12.15",
+      "license_source": "ffmpeg-wasm",
+      "asset": "dist/umd/ffmpeg.js",
+      "asset_sha256": "ad4cfe957589995dea03fc8de1fd5e9f5cb4558a7282913172203082a65bbfaa"
+    },
+    {
+      "name": "libvpx",
+      "url": "https://codeload.github.com/webmproject/libvpx/tar.gz/d168454ecd099805c675d4a98c66f4891373302a",
+      "sha256": "5f6519823db1cc67fba023dc5dcf33abcd3fbab65d7e3c6f1d8ff00917a8c1c6",
+      "root": "libvpx-d168454ecd099805c675d4a98c66f4891373302a",
+      "revision": "d168454ecd099805c675d4a98c66f4891373302a",
+      "license_paths": ["LICENSE"]
+    },
+    {
+      "name": "opus",
+      "url": "https://downloads.xiph.org/releases/opus/opus-1.5.2.tar.gz",
+      "sha256": "65c1d2f78b9f2fb20082c38cbe47c951ad5839345876e46941612ee87f9a7ce1",
+      "root": "opus-1.5.2",
+      "revision": "ddbe48383984d56acd9e1ab6a090c54ca6b735a6",
+      "license_paths": ["COPYING"]
+    },
+    {
+      "name": "zlib",
+      "url": "https://zlib.net/fossils/zlib-1.3.1.tar.gz",
+      "sha256": "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
+      "root": "zlib-1.3.1",
+      "revision": "1.3.1",
+      "license_paths": ["LICENSE"]
+    },
+    {
+      "name": "freetype",
+      "url": "https://download.savannah.gnu.org/releases/freetype/freetype-2.13.3.tar.xz",
+      "fallback_urls": [
+        "https://savannah.nongnu.org/download/freetype/freetype-2.13.3.tar.xz",
+        "https://downloads.sourceforge.net/project/freetype/freetype2/2.13.3/freetype-2.13.3.tar.xz"
+      ],
+      "sha256": "0550350666d427c74daeb85d5ac7bb353acba5f76956395995311a9c6f063289",
+      "root": "freetype-2.13.3",
+      "revision": "42608f77f20749dd6ddc9e0536788eaad70ea4b5",
+      "license_paths": ["LICENSE.TXT", "docs/FTL.TXT", "docs/GPLv2.TXT"]
+    },
+    {
+      "name": "fribidi",
+      "url": "https://github.com/fribidi/fribidi/releases/download/v1.0.16/fribidi-1.0.16.tar.xz",
+      "sha256": "1b1cde5b235d40479e91be2f0e88a309e3214c8ab470ec8a2744d82a5a9ea05c",
+      "root": "fribidi-1.0.16",
+      "revision": "68162babff4f39c4e2dc164a5e825af93bda9983",
+      "license_paths": ["COPYING"]
+    },
+    {
+      "name": "harfbuzz",
+      "url": "https://github.com/harfbuzz/harfbuzz/releases/download/11.2.1/harfbuzz-11.2.1.tar.xz",
+      "sha256": "093714c8548a285094685f0bdc999e202d666b59eeb3df2ff921ab68b8336a49",
+      "root": "harfbuzz-11.2.1",
+      "revision": "33a3f8de60dcad7535f14f07d6710144548853ac",
+      "license_paths": ["COPYING"]
+    },
+    {
+      "name": "libass",
+      "url": "https://github.com/libass/libass/releases/download/0.17.4/libass-0.17.4.tar.xz",
+      "sha256": "78f1179b838d025e9c26e8fef33f8092f65611444ffa1bfc0cfac6a33511a05a",
+      "root": "libass-0.17.4",
+      "revision": "bbb3c7f1570a4a021e52683f3fbdf74fe492ae84",
+      "license_paths": ["COPYING"]
+    }
+  ],
+  "release_profile": {
+    "required_flags": [
+      "--disable-network",
+      "--disable-pthreads",
+      "--disable-w32threads",
+      "--disable-os2threads",
+      "--enable-libass",
+      "--enable-libfreetype",
+      "--enable-libfribidi",
+      "--enable-libopus",
+      "--enable-libvpx",
+      "--enable-zlib"
+    ],
+    "forbidden_flags": [
+      "--enable-gpl",
+      "--enable-nonfree",
+      "--enable-gnutls",
+      "--enable-openssl",
+      "--enable-libx264",
+      "--enable-libx265"
+    ],
+    "initial_memory_bytes": 33554432,
+    "maximum_memory_bytes": 536870912,
+    "artifacts": ["ffmpeg.js", "ffmpeg-core.js", "ffmpeg-core.wasm"]
+  }
+}

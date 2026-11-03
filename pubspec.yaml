@@ -1,0 +1,61 @@
+name: ii_os
+description: Self-hostable Flutter operator console and Dart control plane.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.1
+
+dependencies:
+  crypto: ^3.0.7
+  cupertino_icons: ^1.0.9
+  firebase_auth: ^6.5.4
+  firebase_core: ^4.11.0
+  firebase_messaging: ^16.4.1
+  file_selector: ^1.0.4
+  file_saver: ^0.4.0
+  flutter:
+    sdk: flutter
+  flutter_web_plugins:
+    sdk: flutter
+  go_router: ^17.3.0
+  google_sign_in: ^7.2.0
+  http: ^1.6.0
+  ii_ffmpeg_universal:
+    path: packages/ii_ffmpeg_universal
+  ii_flutter_video_editor:
+    path: packages/ii_flutter_video_editor
+  # Tokens, theme, and the primitive surfaces. In-repo, and needs no pinning
+  # or attestation because it ships no native engine.
+  ii_os_design_system:
+    path: packages/ii_os_design_system
+  ii_interactive_sessions:
+    path: packages/ii_interactive_sessions
+  ii_interactive_sessions_flutter:
+    path: packages/ii_interactive_sessions_flutter
+  lucide_icons_flutter: ^3.1.14+2
+  pinenacl: ^0.6.0
+  shared_preferences: ^2.5.5
+  url_launcher: ^6.3.2
+  uuid: ^4.5.3
+  video_player: ^2.11.1
+  cached_network_image: ^3.4.1
+  web: ^1.1.1
+  just_audio: ^0.10.6
+  stacked: ^3.5.0
+
+dev_dependencies:
+  integration_test:
+    sdk: flutter
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  # Manrope is declared by ii_os_design_system and inherited from there, so the
+  # brand face is identical on web, Android, iOS, and desktop without this app
+  # carrying a second copy. Package assets resolve under
+  # assets/packages/ii_os_design_system/fonts/, which is what web/index.html
+  # loads for the pre-Flutter startup surface. Provenance, licence, and the
+  # subsetting recipe: packages/ii_os_design_system/fonts/README.md

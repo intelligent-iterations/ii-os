@@ -1,0 +1,34 @@
+{
+    "programs": [
+
+    ],
+    "stream_groups": [
+
+    ],
+    "streams": [
+        {
+            "index": 0,
+            "codec_type": "video",
+            "width": 96,
+            "height": 54,
+            "time_base": "1/10240",
+            "start_pts": 10240,
+            "start_time": "1.000000",
+            "duration_ts": 20480,
+            "duration": "2.000000"
+        },
+        {
+            "index": 1,
+            "codec_type": "audio",
+            "time_base": "1/16000",
+            "start_pts": 18800,
+            "start_time": "1.175000",
+            "duration_ts": 29200,
+            "duration": "1.825000"
+        }
+    ],
+    "format": {
+        "start_time": "1.000000",
+        "duration": "2.000000"
+    }
+}

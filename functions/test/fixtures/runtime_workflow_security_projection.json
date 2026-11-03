@@ -1,0 +1,234 @@
+{
+  "provenance": {
+    "kind": "recorded-workflow-security-projection",
+    "capturedAt": "2026-10-29",
+    "sourceFiles": {
+      "gateway": {
+        "sha256": "9d2b2deb52bbe3d866467b7adc2256ca47bbeb3d1dc5353a7e4fef1af2c8b90e",
+        "gitBlob": "c0780fe0480824d0ee06fa52578c8f7329ea12a2"
+      },
+      "workTicket": {
+        "sha256": "f3c38d2ff110f1a071f296dbbbb248ca28384799ede971ad4bd4867dc4c73185",
+        "gitBlob": "d8bc5b1e056440dbfd4dd80d564a5386657ecf38"
+      }
+    },
+    "sanitization": [
+      "Projected from the reviewed gateway and work-ticket workflow sources.",
+      "Preserved actual step IDs, names, order, if conditions, permission grants and result/output expressions.",
+      "Removed workflow triggers, host placement, account identifiers, provider credentials/configuration and private paths.",
+      "Run bodies retain only gate-inspected invocations, control-flow and broker authorization/finalization fragments.",
+      "The projection is inert JSON and is not an executable or deployable workflow."
+    ]
+  },
+  "gateway": {
+    "permissions": {},
+    "jobs": {
+      "work-ticket": {
+        "if": "${{ inputs.operation == 'work_ticket' }}",
+        "permissions": {
+          "contents": "read",
+          "id-token": "write"
+        },
+        "uses": "./.github/workflows/ii-os-agent-work-ticket.yml",
+        "with": {
+          "operation": "work_ticket",
+          "repository": "${{ inputs.repository }}",
+          "issue_number": "${{ inputs.issue_number }}",
+          "permission_profile": "${{ inputs.permission_profile }}",
+          "permission_ref": "${{ inputs.permission_ref }}",
+          "project_item_id": "${{ inputs.project_item_id }}",
+          "permission_digest": "${{ inputs.permission_digest }}",
+          "dispatch_id": "${{ inputs.dispatch_id }}",
+          "workspace_id": "${{ inputs.workspace_id }}",
+          "codex_secret_digest": "${{ inputs.codex_secret_digest }}",
+          "trusted_source_sha": "${{ inputs.trusted_source_sha }}",
+          "auth_smoke": "${{ inputs.auth_smoke }}",
+          "coordinator_source_sha": "${{ inputs.coordinator_source_sha || github.sha }}"
+        },
+        "secrets": "inherit"
+      }
+    }
+  },
+  "workTicket": {
+    "jobs": {
+      "dispatch": {
+        "permissions": {
+          "contents": "read",
+          "id-token": "write"
+        },
+        "environment": "ii-os-agent-maintainer",
+        "steps": [
+          {
+            "id": "coordinator-token",
+            "name": "Recorded step 1",
+            "uses": "actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3",
+            "with": {
+              "permission-contents": "read"
+            }
+          },
+          {
+            "name": "Recorded step 2",
+            "with": {}
+          },
+          {
+            "id": "target",
+            "name": "Recorded step 3",
+            "env": {
+              "READ_SCOPE_0": "redacted-configuration"
+            }
+          },
+          {
+            "name": "Recorded step 4"
+          },
+          {
+            "name": "Recorded step 5",
+            "if": "${{ env.IIAUTO_RUNTIME_DELIVERY_COMPLETE != '1' }}",
+            "timeout-minutes": 22
+          },
+          {
+            "name": "Recorded step 6",
+            "if": "${{ github.run_attempt == 1 && env.IIAUTO_RUNTIME_DELIVERY_COMPLETE != '1' }}",
+            "env": {
+              "READ_SCOPE_0": "redacted-configuration",
+              "READ_SCOPE_1": "redacted-configuration"
+            }
+          },
+          {
+            "id": "api-token",
+            "name": "Recorded step 7",
+            "uses": "actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3",
+            "with": {
+              "permission-contents": "read",
+              "permission-issues": "read",
+              "permission-pull-requests": "read"
+            }
+          },
+          {
+            "name": "Recorded step 8"
+          },
+          {
+            "name": "Recorded step 9",
+            "if": "${{ github.run_attempt > 1 && env.IIAUTO_RUNTIME_DELIVERY_COMPLETE != '1' }}",
+            "env": {
+              "READ_SCOPE_0": "redacted-configuration"
+            }
+          },
+          {
+            "id": "token-stage",
+            "name": "Recorded step 10",
+            "if": "${{ env.IIAUTO_RUNTIME_DELIVERY_COMPLETE != '1' }}",
+            "env": {
+              "READ_SCOPE_0": "redacted-configuration",
+              "READ_SCOPE_1": "redacted-configuration",
+              "READ_SCOPE_2": "redacted-configuration",
+              "READ_SCOPE_3": "redacted-configuration",
+              "READ_SCOPE_4": "redacted-configuration"
+            }
+          },
+          {
+            "name": "Recorded step 11",
+            "if": "${{ inputs.auth_smoke && github.run_attempt == 1 }}",
+            "env": {
+              "READ_SCOPE_0": "redacted-configuration",
+              "READ_SCOPE_1": "redacted-configuration",
+              "READ_SCOPE_2": "redacted-configuration"
+            }
+          },
+          {
+            "id": "runtime",
+            "name": "Recorded step 12",
+            "if": "${{ !inputs.auth_smoke && env.IIAUTO_RUNTIME_DELIVERY_COMPLETE != '1' }}",
+            "env": {
+              "READ_SCOPE_0": "redacted-configuration",
+              "READ_SCOPE_1": "redacted-configuration",
+              "READ_SCOPE_2": "redacted-configuration",
+              "READ_SCOPE_3": "redacted-configuration"
+            },
+            "run": "python3 -m providers.runtime_ticket\n"
+          },
+          {
+            "id": "runtime-cleanup",
+            "name": "Recorded step 13",
+            "if": "${{ always() && !inputs.auth_smoke && steps.runtime.outputs.runtime_requested == 'true' && steps.runtime.outputs.runtime_cleanup_proven != 'true' }}",
+            "timeout-minutes": 20,
+            "env": {
+              "READ_SCOPE_0": "redacted-configuration",
+              "READ_SCOPE_1": "redacted-configuration"
+            },
+            "run": "python3 -m providers.runtime_ticket cleanup\n"
+          },
+          {
+            "id": "token-cleanup",
+            "name": "Remove staged token files",
+            "if": "${{ always() }}",
+            "run": "    echo 'proven=true' >> \"$GITHUB_OUTPUT\"\n  agent_credential_handoff.py \\\n  cleanup\ngrep -Fxq 'proven=true' \"$local_cleanup_output\"\necho 'proven=true' >> \"$GITHUB_OUTPUT\"\n"
+          },
+          {
+            "id": "publication-authorization",
+            "name": "Authorize exact branch publication after cleanup",
+            "if": "${{ always() && !inputs.auth_smoke && steps.token-cleanup.outputs.proven == 'true' && steps.runtime.outputs.runtime_cleanup_proven == 'true' && steps.runtime.outputs.runtime_usage_proven == 'true' && steps.runtime.outputs.agent_bundle_artifact_b64 != '' }}",
+            "env": {
+              "AGENT_RESULT_B64": "${{ steps.runtime.outputs.agent_result_b64 }}",
+              "READ_SCOPE_1": "redacted-configuration",
+              "READ_SCOPE_2": "redacted-configuration"
+            },
+            "run": "    \"$SERVICE_ORIGIN/v1/agent-dispatches/$workspace/$item/authorize-publication\"\npublication_token=\"$(jq -er '.data.publicationToken' <<< \"$response\")\"\n  jq -er '.data.publicationAppLogin' <<< \"$response\"\necho \"::add-mask::$publication_token\"\njq -e '.data.authorized == true' <<< \"$response\" >/dev/null\n"
+          },
+          {
+            "id": "post-read-token",
+            "name": "Recorded step 16",
+            "if": "${{ inputs.auth_smoke }}",
+            "env": {
+              "READ_SCOPE_0": "redacted-configuration",
+              "READ_SCOPE_1": "redacted-configuration",
+              "READ_SCOPE_2": "redacted-configuration",
+              "READ_SCOPE_3": "redacted-configuration",
+              "READ_SCOPE_4": "redacted-configuration",
+              "READ_SCOPE_5": "redacted-configuration"
+            }
+          },
+          {
+            "id": "publication",
+            "name": "Recorded step 17",
+            "if": "${{ steps.publication-authorization.outputs.authorized == 'true' }}",
+            "env": {
+              "AGENT_RESULT_B64": "${{ steps.runtime.outputs.agent_result_b64 }}",
+              "AGENT_BUNDLE_ARTIFACT_B64": "${{ steps.runtime.outputs.agent_bundle_artifact_b64 }}",
+              "GITHUB_PUSH_TOKEN": "${{ steps.publication-authorization.outputs.publication_token }}",
+              "PUSH_APP_LOGIN": "${{ steps.publication-authorization.outputs.publication_app_login }}",
+              "READ_SCOPE_4": "redacted-configuration"
+            }
+          },
+          {
+            "id": "finalization",
+            "name": "Finalize the exact ticket through the ii-os broker",
+            "if": "${{ always() && !inputs.auth_smoke && steps.token-cleanup.outputs.proven == 'true' && ((steps.runtime.outputs.runtime_cleanup_proven == 'true' && (steps.runtime.outputs.runtime_usage_proven == 'true' || steps.runtime.outputs.runtime_execution_never_started == 'true')) || (steps.runtime-cleanup.outputs.runtime_cleanup_proven == 'true' && (steps.runtime-cleanup.outputs.runtime_usage_proven == 'true' || steps.runtime-cleanup.outputs.runtime_execution_never_started == 'true'))) }}",
+            "env": {
+              "AGENT_RESULT_B64": "${{ steps.runtime.outputs.agent_result_b64 }}",
+              "AGENT_BUNDLE_ARTIFACT_B64": "${{ steps.runtime.outputs.agent_bundle_artifact_b64 }}",
+              "RUNTIME_STEP_OUTCOME": "${{ steps.runtime.outcome }}",
+              "PUBLISH_STEP_OUTCOME": "${{ steps.publication.outcome }}",
+              "READ_SCOPE_4": "redacted-configuration",
+              "READ_SCOPE_5": "redacted-configuration",
+              "READ_SCOPE_6": "redacted-configuration",
+              "READ_SCOPE_7": "redacted-configuration"
+            },
+            "run": "if [[ \"$RUNTIME_STEP_OUTCOME\" == 'success' &&\n      -n \"$AGENT_RESULT_B64\" &&\n      ( -z \"$AGENT_BUNDLE_ARTIFACT_B64\" ||\n        \"$PUBLISH_STEP_OUTCOME\" == 'success' ) ]]; then\n        pull_request: null,\n      \"$SERVICE_ORIGIN/v1/agent-dispatches/$workspace/$item/finalize\"\n"
+          },
+          {
+            "name": "Recorded step 19",
+            "if": "${{ always() && !inputs.auth_smoke && steps.finalization.outcome == 'success' && steps.finalization.outputs.finalization_receipt_b64 != '' && steps.runtime.outputs.runtime_delivery_owner != '' && (steps.runtime.outputs.agent_bundle_artifact_b64 == '' || (steps.publication.outcome == 'success' && steps.publication.outputs.publication_receipt_b64 != '')) }}",
+            "env": {
+              "AGENT_BUNDLE_ARTIFACT_B64": "${{ steps.runtime.outputs.agent_bundle_artifact_b64 }}",
+              "READ_SCOPE_1": "redacted-configuration",
+              "READ_SCOPE_2": "redacted-configuration",
+              "READ_SCOPE_3": "redacted-configuration",
+              "READ_SCOPE_4": "redacted-configuration",
+              "READ_SCOPE_5": "redacted-configuration"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

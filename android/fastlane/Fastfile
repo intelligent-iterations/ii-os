@@ -1,0 +1,22 @@
+default_platform(:android)
+
+platform :android do
+  desc "Upload a signed ii-os bundle to Google Play Internal Testing"
+  lane :internal do
+    bundle_path = ENV.fetch("ANDROID_AAB_PATH", "").strip
+    UI.user_error!("ANDROID_AAB_PATH is required") if bundle_path.empty?
+    UI.user_error!("Android AAB not found at #{bundle_path}") unless File.file?(bundle_path)
+    UI.user_error!("Google application credentials are required") if ENV.fetch("GOOGLE_APPLICATION_CREDENTIALS", "").strip.empty?
+
+    upload_to_play_store(
+      track: "internal",
+      aab: bundle_path,
+      package_name: ENV.fetch("II_OS_ANDROID_APPLICATION_ID", "org.example.iios"),
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_changelogs: true,
+      release_status: "completed"
+    )
+  end
+end

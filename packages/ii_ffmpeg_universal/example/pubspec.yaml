@@ -1,0 +1,29 @@
+name: ii_ffmpeg_universal_example
+description: Live cross-platform example for ii_ffmpeg_universal.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.1
+
+dependencies:
+  crypto: ^3.0.7
+  cupertino_icons: ^1.0.8
+  flutter:
+    sdk: flutter
+  ii_ffmpeg_universal:
+    path: ../
+  path: ^1.9.1
+  web: ^1.1.1
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/desktop_engine/

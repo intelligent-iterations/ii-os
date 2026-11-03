@@ -1,0 +1,84 @@
+name: Public quality
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: public-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Install pinned Flutter
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter_root="$RUNNER_TEMP/flutter"
+          git init --quiet "$flutter_root"
+          git -C "$flutter_root" remote add origin https://github.com/flutter/flutter.git
+          git -C "$flutter_root" fetch --quiet --depth 1 origin \
+            924134a44c189315be2148659913dda1671cbe99
+          git -C "$flutter_root" checkout --quiet --detach \
+            924134a44c189315be2148659913dda1671cbe99
+          printf '%s\n' "$flutter_root/bin" >>"$GITHUB_PATH"
+      - name: Install FFmpeg for the render tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends ffmpeg
+      - name: Run the public source gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter config --no-analytics
+          tool/public_quality_gate.sh
+
+  android-debug-build:
+    # Proves the Android app compiles with no Firebase configuration present.
+    # The FFmpeg engine comes from the checksum-pinned debug fallback; release
+    # builds must supply a source-attested engine instead.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Install pinned Flutter
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter_root="$RUNNER_TEMP/flutter"
+          git init --quiet "$flutter_root"
+          git -C "$flutter_root" remote add origin https://github.com/flutter/flutter.git
+          git -C "$flutter_root" fetch --quiet --depth 1 origin \
+            924134a44c189315be2148659913dda1671cbe99
+          git -C "$flutter_root" checkout --quiet --detach \
+            924134a44c189315be2148659913dda1671cbe99
+          printf '%s\n' "$flutter_root/bin" >>"$GITHUB_PATH"
+      - name: Build a debug APK without Firebase configuration
+        shell: bash
+        env:
+          II_FFMPEG_ALLOW_DEBUG_FALLBACK: "true"
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_17_X64"
+          test ! -e android/app/google-services.json
+          flutter config --no-analytics
+          flutter pub get --enforce-lockfile
+          flutter build apk --debug

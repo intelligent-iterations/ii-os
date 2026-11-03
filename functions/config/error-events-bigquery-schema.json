@@ -1,0 +1,16 @@
+[
+  {"name":"occurred_at","type":"TIMESTAMP","mode":"REQUIRED"},
+  {"name":"received_at","type":"TIMESTAMP","mode":"REQUIRED"},
+  {"name":"schema_version","type":"STRING","mode":"REQUIRED"},
+  {"name":"environment","type":"STRING","mode":"REQUIRED"},
+  {"name":"source","type":"STRING","mode":"REQUIRED"},
+  {"name":"error_type","type":"STRING","mode":"REQUIRED"},
+  {"name":"error_message","type":"STRING","mode":"REQUIRED"},
+  {"name":"stack_trace","type":"STRING","mode":"NULLABLE"},
+  {"name":"request_id","type":"STRING","mode":"REQUIRED"},
+  {"name":"related_request_id","type":"STRING","mode":"NULLABLE"},
+  {"name":"route","type":"STRING","mode":"NULLABLE"},
+  {"name":"workspace_id","type":"STRING","mode":"NULLABLE"},
+  {"name":"actor_key","type":"STRING","mode":"NULLABLE"},
+  {"name":"breadcrumbs_json","type":"STRING","mode":"REQUIRED"}
+]

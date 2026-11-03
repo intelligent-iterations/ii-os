@@ -1,0 +1,24 @@
+{
+  "classification": "recorded-real",
+  "fixtureVersion": 1,
+  "producerDate": "2026-08-25T21:30:12Z",
+  "producerPlatform": "Darwin 25.5.0 arm64",
+  "ffmpegVersion": "8.1",
+  "ffmpegSha256": "8d97d0745b0d1d8f6296c026c426c263f509306b8f81c9ffe4e93e95890ca8be",
+  "ffprobeSha256Binary": "94da026e33f8c684ab2a449d25611bb808222f7f08a7d3a6233665a63fbab47a",
+  "mediaSha256": "a3c510586daa970c60ba5b08aadb5d7eb74e2cf0956249de44c475159be7453e",
+  "ffprobeSha256": "cd6cbebb60186167e56dcc140afa8de830d7a5363dd66ab8611927c80673c0c0",
+  "generationCommand": "/opt/homebrew/bin/ffmpeg -hide_banner -loglevel error -y -f lavfi -i color=c=red:size=96x54:rate=40:duration=0.175 -f lavfi -i color=c=blue:size=96x54:rate=40:duration=1.825 -itsoffset 0.175 -f lavfi -i sine=frequency=997:sample_rate=16000:duration=1.825 -filter_complex [0:v][1:v]concat=n=2:v=1:a=0,setpts=PTS+1/TB[v];[2:a]volume='if(lt(t,1.0),0.08,1)':eval=frame,asetpts=PTS+1/TB[a] -map [v] -map [a] -c:v mpeg4 -q:v 10 -pix_fmt yuv420p -c:a pcm_s16le -ar 16000 -f mov linked-offset.mov",
+  "probeCommand": "/opt/homebrew/bin/ffprobe -v error -show_entries format=start_time,duration:stream=index,codec_type,time_base,start_pts,duration_ts,start_time,duration,width,height -of json linked-offset.mov > ffprobe.json",
+  "claims": [
+    "real MOV demux with a 2-second 40 fps video stream starting at 1.000 seconds",
+    "real PCM audio stream starting at 1.175 seconds and lasting 1.825 seconds",
+    "one-second common presentation origin normalizes away before stream-local trims and splits",
+    "red-to-blue visual marker at the same 175-millisecond boundary as tone onset",
+    "997 Hz audio remains at 8 percent amplitude until stream-local time 0.825 seconds (PTS 2.000), then rises to full amplitude so a split-trim regression is observable"
+  ],
+  "doesNotClaim": [
+    "all containers or codecs preserve the same timestamp precision",
+    "browser, Android, iOS, or workspace render execution without their dedicated gate"
+  ]
+}

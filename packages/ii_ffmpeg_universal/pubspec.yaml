@@ -1,0 +1,29 @@
+name: ii_ffmpeg_universal
+description: A backend-neutral FFmpeg API for Flutter and Dart.
+version: 0.0.1
+publish_to: none
+homepage: https://github.com/intelligent-iterations/ii-os/tree/main/packages/ii_ffmpeg_universal
+
+environment:
+  sdk: ^3.12.1
+  flutter: ">=3.44.1"
+
+dependencies:
+  crypto: ^3.0.6
+  ffmpeg_kit_flutter_new_full:
+    path: third_party/ffmpeg_kit_flutter_mobile_full
+  ffi: ^2.1.4
+  flutter:
+    sdk: flutter
+  path: ^1.9.1
+  web: ^1.1.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  assets:
+    - assets/web/ii_ffmpeg_universal_bridge.js
+    - assets/web/ii_ffmpeg_universal_worker.js
