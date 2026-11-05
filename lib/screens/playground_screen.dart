@@ -115,20 +115,23 @@ class _PlaygroundTabs extends StatelessWidget {
   }
 }
 
-/// The Classify tab reads as ready only once its runtime is installed.
+/// The Classify tab reads as ready once its runtime is installed, or when the
+/// deployment reports no runner capacity and the run checks for the model.
 IiOsGatedTab classificationTab(ClassificationAvailability availability) =>
     IiOsGatedTab(
       icon: LucideIcons.listChecks,
       label: 'Classify',
       state: switch (availability) {
-        ClassificationAvailability.available => IiOsGateState.open,
+        ClassificationAvailability.available ||
+        ClassificationAvailability.checkedOnRun => IiOsGateState.open,
         ClassificationAvailability.notInstalled ||
         ClassificationAvailability.notConfigured => IiOsGateState.locked,
         ClassificationAvailability.checking ||
         ClassificationAvailability.unconfirmed => IiOsGateState.pending,
       },
       reason: switch (availability) {
-        ClassificationAvailability.available => '',
+        ClassificationAvailability.available ||
+        ClassificationAvailability.checkedOnRun => '',
         ClassificationAvailability.notInstalled =>
           'Open JEV runtime not installed',
         ClassificationAvailability.notConfigured =>

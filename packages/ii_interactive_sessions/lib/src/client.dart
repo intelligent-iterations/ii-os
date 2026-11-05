@@ -118,7 +118,12 @@ final class InteractiveSessionClient {
 
   Future<void> requestScreenshot() => _send('ui.screenshot.request', const {});
 
-  Future<void> publishScreenshot(UiScreenshot screenshot) async {
+  /// Stops before the next chunk when the caller revokes sharing. Bytes
+  /// already handed to the transport cannot be retracted.
+  Future<void> publishScreenshot(
+    UiScreenshot screenshot, {
+    bool Function()? isCancelled,
+  }) async {
     const chunkBytes = 44 * 1024;
     final count = (screenshot.bytes.length / chunkBytes).ceil();
     if (count < 1 || count > 32) {
@@ -126,6 +131,7 @@ final class InteractiveSessionClient {
     }
     final screenshotId = 'screenshot-${_nextId++}';
     for (var index = 0; index < count; index++) {
+      if (isCancelled?.call() ?? false) return;
       final start = index * chunkBytes;
       final end = (start + chunkBytes).clamp(0, screenshot.bytes.length);
       await sendFrame(

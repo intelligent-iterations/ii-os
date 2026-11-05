@@ -88,6 +88,14 @@ operator supplies a reviewed toolchain or deployment adapter. See
 [Deployment boundary](docs/deployment.md) before copying one into
 `.github/workflows/`.
 
+The dashboard's generation, agent, and mobile update actions run as GitHub
+workflows in a repository the operator connects to a workspace.
+[`examples/implementation/`](examples/implementation/README.md) is a
+ready-made version of that repository: the workflow catalog, the workflows,
+the runner images they start, and a table of every setting they read. It
+contains no model weights or credentials, and GitHub never runs it from this
+repository.
+
 Cross-repository agent publication is disabled by default. Deployments that
 need it set an exact coordinator through
 `II_OS_AGENT_COORDINATOR_REPOSITORY` and a comma-separated allowlist through

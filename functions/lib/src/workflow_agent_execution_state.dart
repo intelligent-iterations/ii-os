@@ -62,17 +62,21 @@ extension WorkflowAgentExecutionState on WorkflowApi {
         'state': state,
       },
       execute: () async {
-        final recorded = await AgentActivationStore(store).recordExecutionState(
-          principal: principal,
-          workspaceId: workspaceId,
-          projectItemId: projectItemId,
-          claimId: claimId,
-          issueNumber: issueNumber,
-          backendId: 'agent-runtime',
-          update: update,
-          inputDigest: inputDigest,
-          artifactDigest: artifactDigest,
-        );
+        final recorded =
+            await AgentActivationStore(
+              store,
+              engines: agentEngines,
+            ).recordExecutionState(
+              principal: principal,
+              workspaceId: workspaceId,
+              projectItemId: projectItemId,
+              claimId: claimId,
+              issueNumber: issueNumber,
+              backendId: 'agent-runtime',
+              update: update,
+              inputDigest: inputDigest,
+              artifactDigest: artifactDigest,
+            );
         // Admission, capacity and provisioning never move the ticket.
         if (state == 'running') {
           final projectId = recorded['projectId'] as String? ?? '';

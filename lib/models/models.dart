@@ -6,6 +6,7 @@ import 'runtime_estimate.dart';
 import 'workflow_runtime_requirement.dart';
 import 'workshop_room.dart';
 
+export 'customer_runner_pool.dart';
 export 'fleet.dart';
 export 'interactive_session.dart';
 export 'organization_access.dart';

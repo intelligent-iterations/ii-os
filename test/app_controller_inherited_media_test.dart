@@ -50,10 +50,11 @@ void main() {
           jobId: 'job-1',
           artifact: const {
             'path': 'workspaces/workspace-child/ghost/job-1/video/result.mp4',
-            'generation': '1787750275441995',
-            'size_bytes': 1632395,
+            // Synthetic identity: this test stops before reading any object.
+            'generation': '1000000000000001',
+            'size_bytes': 1024,
             'sha256':
-                'fd8398268ca72ac1a187f5f93e2e301d2845f2ba269b4b6eabd10d2ca6d982e9',
+                'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
             'content_type': 'video/mp4',
           },
         ),

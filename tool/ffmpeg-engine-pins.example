@@ -1,0 +1,15 @@
+# FFmpeg engine pins for release builds.
+#
+# Release builds consume an FFmpeg engine you built yourself from this
+# repository; they never download one. Copy this file to
+# tool/ffmpeg-engine-pins, replace both values with the results of your own
+# engine build, review the change, and commit it. docs/mobile-release.md
+# explains how to produce and attest the engine. Release tools refuse a
+# missing, uncommitted, or placeholder pins file.
+
+# Full commit of this repository that the engines were built from. The engine
+# build records it as source-revision next to its artifacts.
+engine_source_revision=REPLACE_WITH_THE_40_CHARACTER_SOURCE_COMMIT
+
+# SHA-256 of artifacts/ii-ffmpeg-mobile-android.aar from that same build.
+android_aar_sha256=REPLACE_WITH_THE_64_CHARACTER_AAR_SHA256

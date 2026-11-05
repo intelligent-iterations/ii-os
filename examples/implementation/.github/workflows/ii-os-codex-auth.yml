@@ -1,0 +1,151 @@
+name: ii-os Codex authentication
+
+# Connect Codex. ii-os dispatches ii-os-agent-task.yml with operation
+# codex_auth; this reviewed body runs the device sign-in client in the trusted
+# controller, stores the subscription credential through the one-time
+# repository-secret writer ii-os issues, and proves runtime cleanup. ii-os then
+# dispatches the stored-credential verification separately.
+
+on:
+  workflow_call:
+    inputs:
+      session_id: {required: true, type: string}
+      repository: {required: true, type: string}
+      nonce: {required: true, type: string}
+      coordinator_source_sha: {required: true, type: string}
+      reauthenticate: {required: false, type: boolean, default: false}
+
+permissions: {}
+
+jobs:
+  authenticate:
+    name: Sign in to Codex and store the subscription credential
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ${{ fromJSON(vars.II_OS_AGENT_RUNS_ON) }}
+    environment: ii-os-agent-maintainer
+    timeout-minutes: 50
+    env:
+      GITHUB_REPOSITORY_ID: ${{ github.repository_id }}
+      COORDINATOR_SOURCE_SHA: ${{ inputs.coordinator_source_sha }}
+      II_OS_CONNECTOR_URL: ${{ vars.II_OS_CONNECTOR_URL }}
+      OIDC_AUDIENCE: ${{ vars.II_OS_CONNECTOR_URL }}/v1/codex-auth-sessions
+      II_OS_AGENT_HOST_ID: ${{ vars.II_OS_AGENT_HOST_ID }}
+      II_OS_AGENT_STATE_DIR: ${{ vars.II_OS_AGENT_STATE_DIR }}
+      II_OS_AGENT_ALLOCATION: ${{ vars.II_OS_AGENT_ALLOCATION }}
+      II_OS_GITHUB_APP_ID: ${{ vars.II_OS_GITHUB_APP_ID }}
+      II_OS_GITHUB_APP_SLUG: ${{ vars.II_OS_GITHUB_APP_SLUG }}
+      II_OS_RUNTIME_KIND: codex-auth
+      II_OS_CODEX_AUTH_SESSION_ID: ${{ inputs.session_id }}
+      II_OS_CODEX_AUTH_REPOSITORY: ${{ inputs.repository }}
+    steps:
+      - name: Require the agent kit settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in II_OS_CONNECTOR_URL II_OS_AGENT_HOST_ID II_OS_AGENT_STATE_DIR II_OS_AGENT_ALLOCATION II_OS_GITHUB_APP_ID II_OS_GITHUB_APP_SLUG; do
+            [[ -n "${!name:-}" ]] || missing+=("vars.$name")
+          done
+          if ((${#missing[@]})); then
+            printf '::error::Missing ii-os agent kit setting %s\n' "${missing[@]}"
+            exit 1
+          fi
+          [[ "$II_OS_CONNECTOR_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~-]+)*$ ]] || {
+            echo '::error::II_OS_CONNECTOR_URL must be an https URL with no trailing slash, query or credentials'; exit 1; }
+          [[ "$II_OS_AGENT_HOST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] || {
+            echo '::error::II_OS_AGENT_HOST_ID must be a short host identity'; exit 1; }
+          [[ "$II_OS_AGENT_STATE_DIR" =~ ^/[A-Za-z0-9._/-]+$ && "$II_OS_AGENT_STATE_DIR" != */ ]] || {
+            echo '::error::II_OS_AGENT_STATE_DIR must be an absolute path'; exit 1; }
+          [[ "$II_OS_GITHUB_APP_ID" =~ ^[1-9][0-9]{0,15}$ ]] || {
+            echo '::error::II_OS_GITHUB_APP_ID must be the numeric GitHub App id'; exit 1; }
+          [[ "$II_OS_GITHUB_APP_SLUG" =~ ^[a-z0-9][a-z0-9-]{0,99}$ ]] || {
+            echo '::error::II_OS_GITHUB_APP_SLUG must be the GitHub App slug'; exit 1; }
+
+      - name: Check out the exact reviewed authentication client
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+          clean: true
+
+      - name: Verify the immutable reviewed agent source
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == "refs/tags/ii-os-agent-v4-${GITHUB_SHA}" ]]
+          [[ "$COORDINATOR_SOURCE_SHA" == "$GITHUB_SHA" ]]
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          [[ -z "$(git status --porcelain)" ]]
+          [[ "$II_OS_CODEX_AUTH_REPOSITORY" == "$GITHUB_REPOSITORY" ]]
+          [[ "$II_OS_CODEX_AUTH_SESSION_ID" =~ ^[A-Za-z0-9_-]{1,128}$ ]]
+
+      - name: Confirm the bound runtime host
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          PYTHONPATH=scripts/agent python3 -m providers.runtime_ticket preflight
+
+      - name: Bind this exact run to the ii-os session
+        shell: bash
+        env:
+          II_OS_CODEX_AUTH_NONCE: ${{ inputs.nonce }}
+        run: |
+          set -euo pipefail
+          audience="$(jq -rn --arg value "$OIDC_AUDIENCE" '$value | @uri')"
+          oidc_token="$(
+            curl --fail-with-body --silent --show-error \
+              -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${audience}" |
+              jq -er '.value'
+          )"
+          response_file="$(mktemp)"
+          trap 'rm -f -- "$response_file"' EXIT
+          for _ in $(seq 1 30); do
+            status="$(
+              curl --silent --show-error --max-redirs 0 \
+                --output "$response_file" \
+                --write-out '%{http_code}' \
+                --request POST \
+                -H "Authorization: Bearer $oidc_token" \
+                -H 'Content-Type: application/json' \
+                --data-binary "$(jq -cn --arg nonce "$II_OS_CODEX_AUTH_NONCE" '{nonce:$nonce}')" \
+                "$II_OS_CONNECTOR_URL/v1/codex-auth-sessions/$II_OS_CODEX_AUTH_SESSION_ID/authorize-allocation"
+            )"
+            if [[ "$status" == 200 ]]; then
+              jq -e '.data.authorized == true' "$response_file" >/dev/null
+              exit 0
+            fi
+            code="$(jq -r '.error.code // ""' "$response_file" 2>/dev/null || true)"
+            if [[ "$status" == 409 &&
+                  "$code" == 'codex_auth_workflow_run_unbound' ]]; then
+              sleep 1
+              continue
+            fi
+            cat "$response_file" >&2
+            exit 1
+          done
+          echo 'ii-os did not bind this Codex authentication run.' >&2
+          cat "$response_file" >&2
+          exit 1
+
+      - name: Run the Codex sign-in client through the runtime
+        id: authenticate
+        timeout-minutes: 32
+        shell: bash
+        env:
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
+          II_OS_CODEX_AUTH_REAUTHENTICATE: ${{ inputs.reauthenticate }}
+          II_OS_RUNTIME_AUTHORIZED: '1'
+        run: |
+          PYTHONPATH=scripts/agent python3 -m providers.runtime_admin
+
+      - name: Recover and independently confirm original runtime cleanup
+        if: ${{ always() && steps.authenticate.outputs.runtime_requested == 'true' }}
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          PYTHONPATH=scripts/agent python3 -m providers.runtime_admin recover

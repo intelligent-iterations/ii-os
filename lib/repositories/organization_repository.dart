@@ -104,19 +104,60 @@ final class OrganizationRepository implements OrganizationResourceRepository {
     return DataPlaneValidationModel.fromJson(asJsonMap(response['data']));
   }
 
+  /// Saves one pool the organization keeps by hand; the server upserts by id.
   @override
   Future<void> saveRunnerPool({
     required String organizationId,
     required OrganizationRunnerPoolDraft resource,
-  }) async {
-    await _api.put(
+  }) => _runnerPoolCall(
+    () => _api.put(
       'v1/organizations/$organizationId/resources/runners/${resource.id}',
       body: resource.toJson(),
-    );
-  }
+    ),
+  );
 
+  /// Rebuilds the reported pools from the organization's capacity report.
   @override
-  Future<void> syncFleetRunnerPool({required String organizationId}) async {
-    await _api.post('v1/organizations/$organizationId/resources/runners/sync');
+  Future<void> syncFleetRunnerPool({required String organizationId}) =>
+      _runnerPoolCall(
+        () => _api.post(
+          'v1/organizations/$organizationId/resources/runners/sync',
+        ),
+      );
+}
+
+Future<void> _runnerPoolCall(Future<Object?> Function() call) async {
+  try {
+    await call();
+  } on ApiFailure catch (failure) {
+    throw RunnerPoolFailure(runnerPoolFailureKind(failure));
   }
+}
+
+/// Maps a refused runner pool change onto the cause a person can act on.
+///
+/// The codes are the server's; the capacity-report codes keep the name of the
+/// adapter that produces the report, which never reaches a sentence.
+RunnerPoolFailureKind runnerPoolFailureKind(ApiFailure failure) =>
+    switch (failure.code) {
+      'fleet_not_connected' => RunnerPoolFailureKind.notReported,
+      'fleet_stale' => RunnerPoolFailureKind.staleReport,
+      'fleet_report_invalid' ||
+      'fleet_capacity_unavailable' ||
+      'fleet_pool_unavailable' => RunnerPoolFailureKind.noReportedCapacity,
+      'fleet_pool_limit' => RunnerPoolFailureKind.limitReached,
+      'runner_pool_reported' => RunnerPoolFailureKind.reportedPool,
+      'invalid_organization_resources'
+          when _detailErrors(
+            failure.details,
+          ).contains('too_many_runner_pools') =>
+        RunnerPoolFailureKind.limitReached,
+      _ when failure.statusCode == 403 => RunnerPoolFailureKind.forbidden,
+      _ when failure.statusCode == 400 => RunnerPoolFailureKind.invalid,
+      _ => RunnerPoolFailureKind.unknown,
+    };
+
+Set<String> _detailErrors(Object? details) {
+  final errors = asJsonMap(details)['errors'];
+  return errors is List<Object?> ? errors.whereType<String>().toSet() : {};
 }

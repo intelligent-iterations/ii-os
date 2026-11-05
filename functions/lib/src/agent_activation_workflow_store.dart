@@ -297,7 +297,7 @@ extension AgentActivationWorkflowStore on AgentActivationStore {
     try {
       profile = snapshot == null
           ? null
-          : AgentPermissionProfile.parse(snapshot);
+          : AgentPermissionProfile.parse(snapshot, engines: engines);
     } on ApiError {
       throw _approvalInvalid;
     }

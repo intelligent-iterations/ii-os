@@ -1,0 +1,546 @@
+name: ii-os agent work ticket
+
+# Reviewed body for one human-approved Software Workshop pass. ii-os verifies
+# this file's structure before it lets anyone deploy an agent: the guest gets
+# read-only credentials, publication happens only after runtime and
+# credential cleanup are proven, and every result path finalizes through the
+# ii-os broker. Keep step ids, names and conditions intact when you adapt it.
+
+on:
+  workflow_call:
+    inputs:
+      operation: {required: true, type: string}
+      repository: {required: true, type: string}
+      issue_number: {required: true, type: string}
+      permission_profile: {required: true, type: string}
+      permission_ref: {required: true, type: string}
+      project_item_id: {required: true, type: string}
+      permission_digest: {required: true, type: string}
+      dispatch_id: {required: true, type: string}
+      workspace_id: {required: true, type: string}
+      codex_secret_digest: {required: true, type: string}
+      trusted_source_sha: {required: true, type: string}
+      auth_smoke: {required: true, type: boolean}
+      coordinator_source_sha: {required: true, type: string}
+
+permissions: {}
+
+concurrency:
+  group: ii-os-agent-${{ inputs.operation }}-${{ inputs.repository }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    name: Validate profile and run the agent runtime
+    if: ${{ inputs.operation == 'work_ticket' }}
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ${{ fromJSON(vars.II_OS_AGENT_RUNS_ON) }}
+    environment: ii-os-agent-maintainer
+    timeout-minutes: 130
+    env:
+      GITHUB_REPOSITORY_ID: ${{ github.repository_id }}
+      COORDINATOR_SOURCE_SHA: ${{ inputs.coordinator_source_sha }}
+      II_OS_AGENT_JOB_ID: github:${{ github.repository_id }}:${{ github.run_id }}:${{ github.run_attempt }}:work-ticket
+      DISPATCH_ID: ${{ inputs.dispatch_id }}
+      ISSUE_NUMBER: ${{ inputs.issue_number }}
+      PERMISSION_PROFILE: ${{ inputs.permission_profile }}
+      PERMISSION_REF: ${{ inputs.permission_ref }}
+      PROJECT_ITEM_ID: ${{ inputs.project_item_id }}
+      PERMISSION_DIGEST: ${{ inputs.permission_digest }}
+      TARGET_REPOSITORY: ${{ inputs.repository }}
+      WORKSPACE_ID: ${{ inputs.workspace_id }}
+      CODEX_SECRET_DIGEST: ${{ inputs.codex_secret_digest }}
+      TRUSTED_SOURCE_SHA: ${{ inputs.trusted_source_sha }}
+      II_OS_CONNECTOR_URL: ${{ vars.II_OS_CONNECTOR_URL }}
+      OIDC_AUDIENCE: ${{ vars.II_OS_CONNECTOR_URL }}/v1/codex-auth-sessions
+      II_OS_AGENT_HOST_ID: ${{ vars.II_OS_AGENT_HOST_ID }}
+      II_OS_AGENT_STATE_DIR: ${{ vars.II_OS_AGENT_STATE_DIR }}
+      II_OS_AGENT_ARTIFACT_ROOT: ${{ vars.II_OS_AGENT_STATE_DIR }}/artifacts
+      II_OS_AGENT_ALLOCATION: ${{ vars.II_OS_AGENT_ALLOCATION }}
+      II_OS_GITHUB_APP_ID: ${{ vars.II_OS_GITHUB_APP_ID }}
+      II_OS_GITHUB_APP_SLUG: ${{ vars.II_OS_GITHUB_APP_SLUG }}
+    steps:
+      - name: Require the agent kit settings
+        shell: bash
+        env:
+          APP_KEY_CONFIGURED: ${{ secrets.II_OS_GITHUB_APP_PRIVATE_KEY != '' }}
+          USAGE_KEY_CONFIGURED: ${{ secrets.II_OS_AGENT_USAGE_API_KEY != '' }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in II_OS_CONNECTOR_URL II_OS_AGENT_HOST_ID II_OS_AGENT_STATE_DIR II_OS_AGENT_ALLOCATION II_OS_GITHUB_APP_ID II_OS_GITHUB_APP_SLUG; do
+            [[ -n "${!name:-}" ]] || missing+=("vars.$name")
+          done
+          [[ "$APP_KEY_CONFIGURED" == true ]] || missing+=(secrets.II_OS_GITHUB_APP_PRIVATE_KEY)
+          [[ "$USAGE_KEY_CONFIGURED" == true ]] || missing+=(secrets.II_OS_AGENT_USAGE_API_KEY)
+          if ((${#missing[@]})); then
+            printf '::error::Missing ii-os agent kit setting %s\n' "${missing[@]}"
+            exit 1
+          fi
+          [[ "$II_OS_CONNECTOR_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~-]+)*$ ]] || {
+            echo '::error::II_OS_CONNECTOR_URL must be an https URL with no trailing slash, query or credentials'; exit 1; }
+          [[ "$II_OS_AGENT_HOST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] || {
+            echo '::error::II_OS_AGENT_HOST_ID must be a short host identity'; exit 1; }
+          [[ "$II_OS_AGENT_STATE_DIR" =~ ^/[A-Za-z0-9._/-]+$ && "$II_OS_AGENT_STATE_DIR" != */ ]] || {
+            echo '::error::II_OS_AGENT_STATE_DIR must be an absolute path'; exit 1; }
+          [[ "$II_OS_GITHUB_APP_ID" =~ ^[1-9][0-9]{0,15}$ ]] || {
+            echo '::error::II_OS_GITHUB_APP_ID must be the numeric GitHub App id'; exit 1; }
+          [[ "$II_OS_GITHUB_APP_SLUG" =~ ^[a-z0-9][a-z0-9-]{0,99}$ ]] || {
+            echo '::error::II_OS_GITHUB_APP_SLUG must be the GitHub App slug'; exit 1; }
+          jq -e '(keys | sort) == ["allocationId","capacity","monthlyLimit"]
+            and (.capacity | keys | sort) == ["cpu","diskGiB","memoryMiB"]' \
+            <<< "$II_OS_AGENT_ALLOCATION" > /dev/null || {
+            echo '::error::II_OS_AGENT_ALLOCATION must be {"allocationId","monthlyLimit","capacity":{"cpu","memoryMiB","diskGiB"}}'; exit 1; }
+
+      - name: Check out the exact reviewed agent source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+          clean: true
+
+      - name: Verify the immutable reviewed agent source
+        id: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$TRUSTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$GITHUB_SHA" == "$TRUSTED_SOURCE_SHA" ]]
+          [[ "$COORDINATOR_SOURCE_SHA" == "$GITHUB_SHA" ]]
+          [[ "$GITHUB_REF" == "refs/tags/ii-os-agent-v4-${TRUSTED_SOURCE_SHA}" ]]
+          [[ "$(git rev-parse HEAD)" == "$TRUSTED_SOURCE_SHA" ]]
+          [[ -z "$(git status --porcelain)" ]]
+          [[ "$TARGET_REPOSITORY" == "$GITHUB_REPOSITORY" ]] || {
+            echo '::error::An agent task may only work on the repository that holds this workflow'; exit 1; }
+          [[ "$DISPATCH_ID" =~ ^[A-Za-z0-9:_-]{1,200}$ ]] || {
+            echo '::error::A bounded human deployment ID is required'; exit 1; }
+          printf 'repository=%s\n' "${GITHUB_REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
+
+      - name: Recover exact consumed delivery copies
+        shell: bash
+        run: |
+          set -euo pipefail
+          receipt="$(PYTHONPATH=scripts/agent python3 -m providers.runtime_ticket_cleanup recover)"
+          jq -e '.confirmed == true' <<< "$receipt" >/dev/null
+          if jq -e '.alreadyConsumed == true' <<< "$receipt" >/dev/null; then
+            echo 'II_OS_AGENT_DELIVERY_COMPLETE=1' >> "$GITHUB_ENV"
+          fi
+
+      - name: Confirm the bound runtime host before consuming approval
+        if: ${{ env.II_OS_AGENT_DELIVERY_COMPLETE != '1' }}
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          PYTHONPATH=scripts/agent python3 -m providers.runtime_ticket preflight
+
+      - name: Atomically consume the exact human approval
+        if: ${{ github.run_attempt == 1 && env.II_OS_AGENT_DELIVERY_COMPLETE != '1' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$WORKSPACE_ID" =~ ^[A-Za-z0-9_-]{1,128}$ ]]
+          audience="$(jq -rn --arg value "$OIDC_AUDIENCE" '$value | @uri')"
+          workspace="$(jq -rn --arg value "$WORKSPACE_ID" '$value | @uri')"
+          item="$(jq -rn --arg value "$PROJECT_ITEM_ID" '$value | @uri')"
+          mint_oidc_token() {
+            curl --fail-with-body --silent --show-error \
+              -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${audience}" |
+              jq -er '.value'
+          }
+          request_body="$(
+            jq -n \
+              --arg dispatchId "$DISPATCH_ID" \
+              --arg permissionProfile "$PERMISSION_PROFILE" \
+              --arg permissionDigest "$PERMISSION_DIGEST" \
+              --argjson issueNumber "$ISSUE_NUMBER" \
+              '{dispatchId: $dispatchId, permissionProfile: $permissionProfile,
+                permissionDigest: $permissionDigest, issueNumber: $issueNumber}'
+          )"
+          response_file="$(mktemp)"
+          trap 'rm -f -- "$response_file"' EXIT
+          oidc_token=
+          oidc_refresh_at=0
+          for _ in $(seq 1 420); do
+            if ((SECONDS >= oidc_refresh_at)); then
+              oidc_token="$(mint_oidc_token)"
+              oidc_refresh_at=$((SECONDS + 120))
+            fi
+            status="$(
+              curl --silent --show-error --max-redirs 0 \
+                --output "$response_file" \
+                --write-out '%{http_code}' \
+                -H "Authorization: Bearer $oidc_token" \
+                -H 'Content-Type: application/json' \
+                --data-binary "$request_body" \
+                "$II_OS_CONNECTOR_URL/v1/agent-dispatches/$workspace/$item/consume"
+            )"
+            if [[ "$status" == 200 ]]; then
+              jq -e '.data.consumed == true' "$response_file" >/dev/null
+              ticket_prompt_b64="$(
+                jq -erj '.data.ticketPromptJson' "$response_file" | base64 | tr -d '\n'
+              )"
+              ticket_prompt_digest="$(
+                jq -er '.data.ticketPromptDigest' "$response_file"
+              )"
+              [[ "$ticket_prompt_digest" =~ ^[0-9a-f]{64}$ ]]
+              {
+                printf 'IIAUTO_TICKET_PROMPT_B64=%s\n' "$ticket_prompt_b64"
+                printf 'IIAUTO_TICKET_PROMPT_SHA256=%s\n' "$ticket_prompt_digest"
+                echo 'IIAUTO_APPROVAL_CONSUMED=1'
+              } >> "$GITHUB_ENV"
+              exit 0
+            fi
+            code="$(jq -r '.error.code // ""' "$response_file" 2>/dev/null || true)"
+            if [[ "$status" == 409 && "$code" == 'agent_dispatch_run_unbound' ]]; then
+              sleep 1
+              continue
+            fi
+            cat "$response_file" >&2
+            exit 1
+          done
+          echo 'ii-os did not bind this exact human-deployed workflow run before timeout.' >&2
+          exit 1
+
+      - name: Mint short-lived GitHub API token
+        id: api-token
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+        with:
+          app-id: ${{ vars.II_OS_GITHUB_APP_ID }}
+          private-key: ${{ secrets.II_OS_GITHUB_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.target.outputs.repository }}
+          permission-contents: read
+          permission-issues: read
+          permission-pull-requests: read
+
+      - name: Restore the original inputs for cleanup-only recovery
+        if: ${{ github.run_attempt > 1 && env.II_OS_AGENT_DELIVERY_COMPLETE != '1' }}
+        shell: bash
+        env:
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
+        run: |
+          set -euo pipefail
+          PYTHONPATH=scripts/agent python3 -m providers.runtime_ticket restore
+
+      - name: Stage per-run capability-bound token files
+        id: token-stage
+        if: ${{ env.II_OS_AGENT_DELIVERY_COMPLETE != '1' }}
+        shell: bash
+        env:
+          API_TOKEN: ${{ steps.api-token.outputs.token }}
+          API_APP_SLUG: ${{ steps.api-token.outputs.app-slug }}
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
+          II_OS_AGENT_USAGE_API_KEY: ${{ secrets.II_OS_AGENT_USAGE_API_KEY }}
+        run: |
+          set -euo pipefail
+          [[ "$API_APP_SLUG" == "$II_OS_GITHUB_APP_SLUG" ]]
+          python3 scripts/agent/agent_credential_handoff.py stage
+
+      - name: Verify read-only GitHub App token handoff
+        if: ${{ inputs.auth_smoke && github.run_attempt == 1 }}
+        shell: bash
+        env:
+          API_TOKEN: ${{ steps.api-token.outputs.token }}
+          API_APP_SLUG: ${{ steps.api-token.outputs.app-slug }}
+        run: |
+          set -euo pipefail
+          repository_name="$(
+            curl --fail-with-body --silent --show-error --max-redirs 0 \
+              -H "Authorization: Bearer $API_TOKEN" \
+              -H 'Accept: application/vnd.github+json' \
+              "$GITHUB_API_URL/repos/$TARGET_REPOSITORY" | jq -er '.full_name'
+          )"
+          [[ "$API_APP_SLUG" == "$II_OS_GITHUB_APP_SLUG" ]] || {
+            echo "Unexpected GitHub API App identity: $API_APP_SLUG" >&2
+            exit 1
+          }
+          [[ "$repository_name" == "$TARGET_REPOSITORY" ]] || {
+            echo "GitHub API token cannot read the target repository" >&2
+            exit 1
+          }
+          printf 'api_app=%s\nrepository=%s\n' \
+            "$API_APP_SLUG" "$repository_name"
+
+      - name: Execute or recover the original agent-runtime workload
+        id: runtime
+        if: ${{ !inputs.auth_smoke && env.II_OS_AGENT_DELIVERY_COMPLETE != '1' }}
+        timeout-minutes: 100
+        shell: bash
+        env:
+          GITHUB_API_TOKEN: ${{ steps.api-token.outputs.token }}
+          GITHUB_API_APP_SLUG: ${{ steps.api-token.outputs.app-slug }}
+        run: |
+          set -euo pipefail
+          PYTHONPATH=scripts/agent \
+            python3 -m providers.runtime_ticket
+
+      - name: Reconcile interrupted runtime before removing credentials
+        id: runtime-cleanup
+        if: ${{ always() && !inputs.auth_smoke && steps.runtime.outputs.runtime_requested == 'true' && steps.runtime.outputs.runtime_cleanup_proven != 'true' }}
+        timeout-minutes: 20
+        shell: bash
+        env:
+          # A cleanup observer never receives credentials or publication authority.
+          II_OS_AGENT_RUNTIME_OBSERVER: cleanup
+        run: |
+          set -euo pipefail
+          PYTHONPATH=scripts/agent \
+            python3 -m providers.runtime_ticket cleanup
+
+      - name: Remove staged token files
+        id: token-cleanup
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${II_OS_AGENT_HANDOFF_INODE:-}" ]]; then
+            if ((GITHUB_RUN_ATTEMPT > 1)); then
+              echo 'proven=true' >> "$GITHUB_OUTPUT"
+            else
+              echo 'proven=false' >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+          readonly local_cleanup_output="$RUNNER_TEMP/ii-os-agent-local-cleanup-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.txt"
+          GITHUB_OUTPUT="$local_cleanup_output" python3 \
+            scripts/agent/agent_credential_handoff.py \
+            cleanup
+          grep -Fxq 'proven=true' "$local_cleanup_output"
+          echo 'proven=true' >> "$GITHUB_OUTPUT"
+
+      - name: Authorize exact branch publication after cleanup
+        id: publication-authorization
+        if: ${{ always() && !inputs.auth_smoke && steps.token-cleanup.outputs.proven == 'true' && steps.runtime.outputs.runtime_cleanup_proven == 'true' && steps.runtime.outputs.runtime_usage_proven == 'true' && steps.runtime.outputs.agent_bundle_artifact_b64 != '' }}
+        shell: bash
+        env:
+          AGENT_RESULT_B64: ${{ steps.runtime.outputs.agent_result_b64 }}
+        run: |
+          set -euo pipefail
+          workspace="$(jq -rn --arg value "$WORKSPACE_ID" '$value | @uri')"
+          item="$(jq -rn --arg value "$PROJECT_ITEM_ID" '$value | @uri')"
+          result="$(
+            jq -ern --arg encoded "$AGENT_RESULT_B64" \
+              '$encoded | @base64d | fromjson'
+          )"
+          audience="$(jq -rn --arg value "$OIDC_AUDIENCE" '$value | @uri')"
+          oidc_token="$(
+            curl --fail-with-body --silent --show-error \
+              -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${audience}" |
+              jq -er '.value'
+          )"
+          response="$(
+            curl --fail-with-body --silent --show-error --max-redirs 0 \
+              -H "Authorization: Bearer $oidc_token" \
+              -H 'Content-Type: application/json' \
+              --data-binary "$result" \
+              "$II_OS_CONNECTOR_URL/v1/agent-dispatches/$workspace/$item/authorize-publication"
+          )"
+          jq -e '.data.authorized == true' <<< "$response" >/dev/null
+          publication_token="$(jq -er '.data.publicationToken' <<< "$response")"
+          publication_app_login="$(
+            jq -er '.data.publicationAppLogin' <<< "$response"
+          )"
+          publication_repository="$(
+            jq -er '.data.publicationRepository' <<< "$response"
+          )"
+          publication_repository_id="$(
+            jq -er '.data.publicationRepositoryId' <<< "$response"
+          )"
+          echo "::add-mask::$publication_token"
+          {
+            echo 'authorized=true'
+            echo "publication_token=$publication_token"
+            echo "publication_app_login=$publication_app_login"
+            echo "publication_repository=$publication_repository"
+            echo "publication_repository_id=$publication_repository_id"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Mint exact Git read token for auth smoke
+        id: post-read-token
+        if: ${{ inputs.auth_smoke }}
+        shell: bash
+        env:
+          II_OS_GITHUB_APP_PRIVATE_KEY: ${{ secrets.II_OS_GITHUB_APP_PRIVATE_KEY }}
+          GITHUB_PERMISSION_LEVEL: read
+          TARGET_REPOSITORY: ${{ steps.publication-authorization.outputs.publication_repository || inputs.repository }}
+          TARGET_REPOSITORY_ID: ${{ steps.publication-authorization.outputs.publication_repository_id || github.repository_id }}
+        run: |
+          set -euo pipefail
+          python3 scripts/agent/github_app_repository_token.py
+
+      - name: Publish the authorized exact change bundle
+        id: publication
+        if: ${{ steps.publication-authorization.outputs.authorized == 'true' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          AGENT_RESULT_B64: ${{ steps.runtime.outputs.agent_result_b64 }}
+          AGENT_BUNDLE_ARTIFACT_B64: ${{ steps.runtime.outputs.agent_bundle_artifact_b64 }}
+          GITHUB_PUSH_TOKEN: ${{ steps.publication-authorization.outputs.publication_token }}
+          PUSH_APP_LOGIN: ${{ steps.publication-authorization.outputs.publication_app_login }}
+        run: |
+          set -euo pipefail
+          [[ -n "$PUSH_APP_LOGIN" ]]
+          for publication_attempt in 1 2 3; do
+            if python3 \
+              scripts/agent/agent_task_push.py; then
+              exit 0
+            fi
+            sleep "$publication_attempt"
+          done
+          exit 1
+
+      - name: Finalize the exact ticket through the ii-os broker
+        id: finalization
+        if: ${{ always() && !inputs.auth_smoke && steps.token-cleanup.outputs.proven == 'true' && ((steps.runtime.outputs.runtime_cleanup_proven == 'true' && (steps.runtime.outputs.runtime_usage_proven == 'true' || steps.runtime.outputs.runtime_execution_never_started == 'true')) || (steps.runtime-cleanup.outputs.runtime_cleanup_proven == 'true' && (steps.runtime-cleanup.outputs.runtime_usage_proven == 'true' || steps.runtime-cleanup.outputs.runtime_execution_never_started == 'true'))) }}
+        shell: bash
+        env:
+          AGENT_RESULT_B64: ${{ steps.runtime.outputs.agent_result_b64 }}
+          AGENT_BUNDLE_ARTIFACT_B64: ${{ steps.runtime.outputs.agent_bundle_artifact_b64 }}
+          RUNTIME_STEP_OUTCOME: ${{ steps.runtime.outcome }}
+          RETRY_FAILURE_CODE: ${{ steps.runtime-cleanup.outputs.retry_failure_code || steps.runtime.outputs.retry_failure_code }}
+          RETRY_FAILURE_DETAIL: ${{ steps.runtime-cleanup.outputs.retry_failure_detail || steps.runtime.outputs.retry_failure_detail }}
+          PUBLISH_STEP_OUTCOME: ${{ steps.publication.outcome }}
+        run: |
+          set -euo pipefail
+          workspace="$(jq -rn --arg value "$WORKSPACE_ID" '$value | @uri')"
+          item="$(jq -rn --arg value "$PROJECT_ITEM_ID" '$value | @uri')"
+          if [[ "$RUNTIME_STEP_OUTCOME" == 'success' &&
+                -n "$AGENT_RESULT_B64" &&
+                ( -z "$AGENT_BUNDLE_ARTIFACT_B64" ||
+                  "$PUBLISH_STEP_OUTCOME" == 'success' ) ]]; then
+            result="$(
+              jq -ern --arg encoded "$AGENT_RESULT_B64" \
+                '$encoded | @base64d | fromjson'
+            )"
+          else
+            run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            detail="${RETRY_FAILURE_DETAIL:-The agent runtime cleaned without exporting a bounded result.}"
+            if [[ -n "$AGENT_BUNDLE_ARTIFACT_B64" &&
+                  "$PUBLISH_STEP_OUTCOME" != 'success' ]]; then
+              detail='Trusted post-cleanup branch publication was not durably completed; the exact runtime export is retained for recovery.'
+              code='agent_change_publish_failed'
+            else
+              code="${RETRY_FAILURE_CODE:-agent_result_missing}"
+            fi
+            if [[ ! "$code" =~ ^[a-z][a-z0-9_]{0,99}$ ]]; then
+              code='agent_result_invalid'
+            fi
+            detail="$(
+              jq -nr --arg value "$detail" \
+                '$value | gsub("[\\r\\n]+"; " ") | gsub("[[:space:]]+"; " ")
+                 | ltrimstr(" ") | rtrimstr(" ") | .[0:500]'
+            )"
+            detail="${detail:-The agent runtime stopped without a bounded result.}"
+            result="$(
+              jq -n \
+                --arg dispatch_id "$DISPATCH_ID" \
+                --arg repository "$TARGET_REPOSITORY" \
+                --argjson repository_id "$GITHUB_REPOSITORY_ID" \
+                --argjson issue_number "$ISSUE_NUMBER" \
+                --arg project_item_id "$PROJECT_ITEM_ID" \
+                --arg code "$code" \
+                --arg detail "$detail" \
+                --arg run_url "$run_url" \
+                '{
+                  dispatch_id: $dispatch_id,
+                  repository: $repository,
+                  repository_id: $repository_id,
+                  issue_number: $issue_number,
+                  project_item_id: $project_item_id,
+                  outcome: "not_ready",
+                  status: "todo",
+                  pull_request: null,
+                  automation_failure: {code: $code, detail: $detail},
+                  comments: [(
+                    "<!-- ii-os:agent-retry-failed -->\n\n" +
+                    "Agent pickup stopped after its isolated runtime was cleaned. " +
+                    "Review the failure, then press Deploy again if another pass is appropriate.\n\n" +
+                    "Configuration code: `" + $code + "`\n" +
+                    "Detail: " + $detail + "\n" +
+                    "Workflow run: " + $run_url
+                  )]
+                }'
+            )"
+          fi
+          audience="$(jq -rn --arg value "$OIDC_AUDIENCE" '$value | @uri')"
+          response_file="$(mktemp)"
+          trap 'rm -f -- "$response_file"' EXIT
+          for _ in $(seq 1 210); do
+            oidc_token="$(
+              curl --fail-with-body --silent --show-error \
+                -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+                "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${audience}" |
+                jq -er '.value'
+            )"
+            status="$(
+              curl --silent --show-error --max-redirs 0 \
+                --output "$response_file" \
+                --write-out '%{http_code}' \
+                -H "Authorization: Bearer $oidc_token" \
+                -H 'Content-Type: application/json' \
+                --data-binary "$result" \
+                "$II_OS_CONNECTOR_URL/v1/agent-dispatches/$workspace/$item/finalize"
+            )"
+            if [[ "$status" == 200 ]]; then
+              jq -e \
+                --arg workspace_id "$WORKSPACE_ID" \
+                --arg project_item_id "$PROJECT_ITEM_ID" \
+                --arg dispatch_id "$DISPATCH_ID" \
+                --arg repository "$TARGET_REPOSITORY" \
+                --argjson repository_id "$GITHUB_REPOSITORY_ID" \
+                --argjson issue_number "$ISSUE_NUMBER" \
+                --argjson run_id "$GITHUB_RUN_ID" \
+                --argjson run_attempt "$GITHUB_RUN_ATTEMPT" \
+                '.data.finalized == true and
+                 .data.receipt.schema_version == 1 and
+                 .data.receipt.finalized == true and
+                 .data.receipt.workspace_id == $workspace_id and
+                 .data.receipt.project_item_id == $project_item_id and
+                 .data.receipt.dispatch_id == $dispatch_id and
+                 .data.receipt.repository == $repository and
+                 .data.receipt.repository_id == $repository_id and
+                 .data.receipt.issue_number == $issue_number and
+                 .data.receipt.run_id == $run_id and
+                 .data.receipt.run_attempt == $run_attempt and
+                 (.data.receipt.result_digest | strings | test("^[0-9a-f]{64}$"))' \
+                "$response_file" >/dev/null
+              jq -cS '.data.receipt' "$response_file" |
+                base64 |
+                tr -d '\n' |
+                sed 's/^/finalization_receipt_b64=/' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            code="$(jq -r '.error.code // ""' "$response_file" 2>/dev/null || true)"
+            if [[ "$status" == 409 &&
+                  "$code" == 'agent_dispatch_finalization_in_progress' ]] ||
+               [[ "$status" =~ ^5[0-9][0-9]$ ]]; then
+              sleep 5
+              continue
+            fi
+            cat "$response_file" >&2
+            exit 1
+          done
+          echo 'The exact finalization lease did not recover before timeout.' >&2
+          cat "$response_file" >&2
+          exit 1
+
+      - name: Remove consumed local delivery copies
+        if: ${{ always() && !inputs.auth_smoke && steps.finalization.outcome == 'success' && steps.finalization.outputs.finalization_receipt_b64 != '' && steps.runtime.outputs.runtime_delivery_owner != '' && (steps.runtime.outputs.agent_bundle_artifact_b64 == '' || (steps.publication.outcome == 'success' && steps.publication.outputs.publication_receipt_b64 != '')) }}
+        shell: bash
+        env:
+          RUNTIME_DELIVERY_OWNER: ${{ steps.runtime.outputs.runtime_delivery_owner }}
+          AGENT_BUNDLE_ARTIFACT_B64: ${{ steps.runtime.outputs.agent_bundle_artifact_b64 }}
+          AGENT_FINALIZATION_RECEIPT_B64: ${{ steps.finalization.outputs.finalization_receipt_b64 }}
+          AGENT_PUBLICATION_RECEIPT_B64: ${{ steps.publication.outputs.publication_receipt_b64 }}
+          AGENT_PUBLICATION_REPOSITORY: ${{ steps.publication-authorization.outputs.publication_repository }}
+          AGENT_PUBLICATION_REPOSITORY_ID: ${{ steps.publication-authorization.outputs.publication_repository_id }}
+        run: |
+          set -euo pipefail
+          PYTHONPATH=scripts/agent python3 -m providers.runtime_ticket_cleanup

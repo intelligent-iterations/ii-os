@@ -1,0 +1,14 @@
+{
+  "name": "@intelligent-iterations/ii-os-agent-execution",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=22.16"
+  },
+  "dependencies": {
+    "@intelligent-iterations/ii-agent-runtime": "github:intelligent-iterations/ii-agent-runtime#b27525b30fc7c709b41fc8c62de4a4eb699f9827"
+  }
+}

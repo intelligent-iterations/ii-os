@@ -1,0 +1,182 @@
+# Image-to-video for the catalog id image-to-video (LTX-2.3 22B): one staged
+# source image becomes a 720p MP4 with generated audio, published with its
+# opening frame as a poster.
+#
+# Settings: II_OS_CONNECTOR_URL, II_OS_TOKEN, II_OS_GPU_RUNS_ON,
+# II_OS_CPU_RUNS_ON, II_OS_MODEL_ROOT, II_OS_RUNNER_IMAGE_LTX_VIDEO.
+# See docs/generation.md.
+name: ii-os image-to-video
+run-name: ii-os generation ${{ inputs.ii_request_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      ii_request_id:
+        description: ii-os request identity
+        required: true
+        type: string
+      ii_payload_mode:
+        description: Payload delivery contract (inputs are always read from the claim)
+        required: false
+        type: string
+        default: claim
+      source_asset_id:
+        description: Delivered through the ii-os claim; this event value is ignored
+        required: false
+        type: string
+        default: ""
+      prompt:
+        description: Delivered through the ii-os claim; this event value is ignored
+        required: false
+        type: string
+        default: ""
+      duration_seconds:
+        description: Delivered through the ii-os claim; this event value is ignored
+        required: false
+        type: string
+        default: ""
+      orientation:
+        description: Delivered through the ii-os claim; this event value is ignored
+        required: false
+        type: string
+        default: ""
+      fps:
+        description: Delivered through the ii-os claim; this event value is ignored
+        required: false
+        type: string
+        default: ""
+
+permissions: {}
+
+concurrency:
+  group: ii-os-image-to-video-${{ inputs.ii_request_id }}
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    name: Generate the video
+    runs-on: ${{ fromJSON(vars.II_OS_GPU_RUNS_ON) }}
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      RUNNER_NAME: ltx-video
+      RUNNER_TASK: image-to-video
+    steps:
+      - name: Check out this workflow's commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Check settings
+        shell: bash
+        env:
+          II_OS_CONNECTOR_URL: ${{ vars.II_OS_CONNECTOR_URL }}
+          II_OS_TOKEN: ${{ secrets.II_OS_TOKEN }}
+          II_OS_MODEL_ROOT: ${{ vars.II_OS_MODEL_ROOT }}
+          II_OS_RUNNER_IMAGE_LTX_VIDEO: ${{ vars.II_OS_RUNNER_IMAGE_LTX_VIDEO }}
+        run: >-
+          python3 scripts/ii_os_settings.py check --connector --model-root
+          --runner-image II_OS_RUNNER_IMAGE_LTX_VIDEO
+
+      - name: Claim the request
+        id: claim
+        uses: ./.github/actions/ii-os-claim
+        with:
+          connector-url: ${{ vars.II_OS_CONNECTOR_URL }}
+          token: ${{ secrets.II_OS_TOKEN }}
+          request-id: ${{ inputs.ii_request_id }}
+          max-sources: "1"
+          source-kinds: image
+
+      - name: Plan the run
+        id: plan
+        shell: bash
+        env:
+          WORK_DIR: ${{ steps.claim.outputs.work-dir }}
+        run: >-
+          python3 "runners/${RUNNER_NAME}/entrypoint.py" plan --task "${RUNNER_TASK}"
+          --input-dir "${WORK_DIR}/in" --github-output "${GITHUB_OUTPUT}"
+
+      - name: Check the model folder
+        shell: bash
+        env:
+          II_OS_MODEL_ROOT: ${{ vars.II_OS_MODEL_ROOT }}
+          PROFILE: ${{ steps.plan.outputs.profile }}
+        run: >-
+          python3 scripts/ii_os_model_folder.py check --manifest "runners/${RUNNER_NAME}/models.json"
+          --model-root "${II_OS_MODEL_ROOT}" --profile "${PROFILE}"
+
+      - name: Generate in the isolated runner container
+        shell: bash
+        env:
+          II_OS_MODEL_ROOT: ${{ vars.II_OS_MODEL_ROOT }}
+          RUNNER_IMAGE: ${{ vars.II_OS_RUNNER_IMAGE_LTX_VIDEO }}
+          WORK_DIR: ${{ steps.claim.outputs.work-dir }}
+        run: >-
+          python3 scripts/ii_os_run_container.py run --runner "${RUNNER_NAME}" --gpu
+          --image "${RUNNER_IMAGE}" --model-root "${II_OS_MODEL_ROOT}" --work-dir "${WORK_DIR}"
+          -- run --task "${RUNNER_TASK}"
+
+      - name: Publish the video and its poster
+        id: complete
+        uses: ./.github/actions/ii-os-complete
+        with:
+          connector-url: ${{ vars.II_OS_CONNECTOR_URL }}
+          token: ${{ secrets.II_OS_TOKEN }}
+          request-id: ${{ inputs.ii_request_id }}
+          work-dir: ${{ steps.claim.outputs.work-dir }}
+          bucket: ${{ steps.claim.outputs.bucket }}
+          object-prefix: ${{ steps.claim.outputs.object-prefix }}
+          workload-identity-provider: ${{ steps.claim.outputs.workload-identity-provider }}
+          service-account: ${{ steps.claim.outputs.service-account }}
+          allowed-content-types: video/mp4,image/png
+          max-bytes: "2147483648"
+
+      - name: Report a failure
+        if: ${{ always() && steps.claim.outcome != 'skipped' && steps.complete.outcome != 'success' }}
+        uses: ./.github/actions/ii-os-complete
+        with:
+          status: failed
+          connector-url: ${{ vars.II_OS_CONNECTOR_URL }}
+          token: ${{ secrets.II_OS_TOKEN }}
+          request-id: ${{ inputs.ii_request_id }}
+          work-dir: ${{ steps.claim.outputs.work-dir }}
+          job-status: ${{ job.status }}
+          error-code: video_generation_failed
+          cancelled-error-code: video_generation_cancelled
+
+      - name: Remove the container and the run directory
+        if: ${{ always() }}
+        shell: bash
+        env:
+          II_REQUEST_ID: ${{ inputs.ii_request_id }}
+        run: |
+          python3 scripts/ii_os_run_container.py remove --runner "${RUNNER_NAME}"
+          python3 scripts/ii_os_claim.py cleanup
+
+  report-terminal-status:
+    name: Report a run that could not finish
+    needs: generate
+    if: ${{ always() && needs.generate.result != 'success' }}
+    runs-on: ${{ fromJSON(vars.II_OS_CPU_RUNS_ON) }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out this workflow's commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Report the terminal status
+        uses: ./.github/actions/ii-os-complete
+        with:
+          status: failed
+          connector-url: ${{ vars.II_OS_CONNECTOR_URL }}
+          token: ${{ secrets.II_OS_TOKEN }}
+          request-id: ${{ inputs.ii_request_id }}
+          job-status: ${{ needs.generate.result }}
+          error-code: video_generation_failed
+          cancelled-error-code: video_generation_cancelled

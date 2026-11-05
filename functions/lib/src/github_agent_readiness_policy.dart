@@ -489,9 +489,12 @@ List<Map<String, Object?>> repositoryWorkflowChecks(
   ];
 }
 
-bool _isExecutableProfile(AgentPermissionProfile profile) {
+bool _isExecutableProfile(
+  AgentPermissionProfile profile,
+  AgentEngineCatalog engines,
+) {
   try {
-    requireExecutableAgentProfile(profile);
+    requireExecutableAgentProfile(profile, engines: engines);
     return true;
   } on ApiError {
     return false;

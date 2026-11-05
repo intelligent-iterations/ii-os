@@ -696,7 +696,7 @@ void main() {
     const character = CharacterModel(
       id: 'character-1',
       workspaceId: 'workspace-1',
-      name: 'Amaru',
+      name: 'Example hero',
       answers: {},
       prompt: 'Saved Z-Image prompt',
       bodyPrompt: 'Saved body expansion prompt',

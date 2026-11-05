@@ -160,10 +160,10 @@ void main() {
       buildCharacterGenerationInput(const {
         'creationMode': 'scratch',
         'status': 'ready',
-        'prompt': 'Permanent specification\n\nCharacter: Amaru.',
+        'prompt': 'Permanent specification\n\nCharacter: Example hero.',
       }),
       {
-        'prompt': 'Permanent specification\n\nCharacter: Amaru.',
+        'prompt': 'Permanent specification\n\nCharacter: Example hero.',
         'aspect_ratio': '16:9',
       },
     );

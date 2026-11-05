@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "runner": "open-jev",
+  "profiles": {
+    "jev-9b": [
+      "jev-9b/config.json",
+      "jev-9b/model.safetensors.index.json",
+      "jev-9b/model-00001-of-00005.safetensors",
+      "jev-9b/model-00002-of-00005.safetensors",
+      "jev-9b/model-00003-of-00005.safetensors",
+      "jev-9b/model-00004-of-00005.safetensors",
+      "jev-9b/model-00005-of-00005.safetensors",
+      "jev-9b/adapter/adapter_config.json",
+      "jev-9b/adapter/adapter_model.safetensors",
+      "jev-9b/head.safetensors",
+      "jev-9b/judge_config.json",
+      "jev-9b/calibration.json",
+      "jev-9b/tokenizer.json",
+      "jev-9b/tokenizer_config.json"
+    ]
+  },
+  "files": [
+    {
+      "path": "jev-9b/config.json",
+      "size_bytes": 2292,
+      "sha256": "616e4e6b1ef1ca8b1832a1a8cb35d16a2281eb876c1bba5eb2cfb4960e496bbc",
+      "source": "https://huggingface.co/autotrust/JEV-9B/resolve/7ac669b8fb476ba926491e3d1c39f9330d68dbed/config.json",
+      "license": "Apache-2.0",
+      "note": "autotrust/JEV-9B at a pinned commit, an independent distillation built on Qwen/Qwen3.5-9B (Apache-2.0). Keep the snapshot layout: the loader reads this folder as one Hugging Face model directory."
+    },
+    {
+      "path": "jev-9b/model.safetensors.index.json",
+      "size_bytes": 35625,
+      "sha256": "44eea46667963a29cc2ae0ffc5d2e07df077057b284f6d9d31cb149f70aa4d21",
+      "source": "https://huggingface.co/autotrust/JEV-9B/resolve/7ac669b8fb476ba926491e3d1c39f9330d68dbed/model.safetensors.index.json",
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "jev-9b/model-00001-of-00005.safetensors",
+      "size_bytes": 4234572344,
+      "sha256": "fdce203bd6767c95690c4695699e9e796fa53caeb06c7f6d43a014f7c513b32c",
+      "source": "https://huggingface.co/autotrust/JEV-9B/resolve/7ac669b8fb476ba926491e3d1c39f9330d68dbed/model-00001-of-00005.safetensors",
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "jev-9b/model-00002-of-00005.safetensors",
+      "size_bytes": 4199125880,
+      "sha256": "64003b88d6e6871f2315e39356188082063ff879994434d5ce8c209b3c736a01",
+      "source": "https://huggingface.co/autotrust/JEV-9B/resolve/7ac669b8fb476ba926491e3d1c39f9330d68dbed/model-00002-of-00005.safetensors",
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "jev-9b/model-00003-of-00005.safetensors",
+      "size_bytes": 4215396752,
+      "sha256": "ef7cf4227fb3f391bb2bcd5d79a3c10cd90d823dbf964f41a0aa34591377ae82",
+      "source": "https://huggingface.co/autotrust/JEV-9B/resolve/7ac669b8fb476ba926491e3d1c39f9330d68dbed/model-00003-of-00005.safetensors",
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "jev-9b/model-00004-of-00005.safetensors",
+      "size_bytes": 3224330536,
+      "sha256": "2265f2fcf900572fa0b7c645a9a64f662d4123daeeeda23e917411e907d66272",
+      "source": "https://huggingface.co/autotrust/JEV-9B/resolve/7ac669b8fb476ba926491e3d1c39f9330d68dbed/model-00004-of-00005.safetensors",
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "jev-9b/model-00005-of-00005.safetensors",
+      "size_bytes": 2034237568,
+      "sha256": "dd63614f1dc80dce2d83be3f3e69af1f8a0ebc8add9b8e0abf3910f563e44344",
+      "source": "https://huggingface.co/autotrust/JEV-9B/resolve/7ac669b8fb476ba926491e3d1c39f9330d68dbed/model-00005-of-00005.safetensors",
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "jev-9b/adapter/adapter_config.json",
+      "size_bytes": 1319,
+      "sha256": "9ec52bc006c17292f597c0ca331e978991ef7d2df3cd6f7cb89592869a36f476",
+      "source": "https://huggingface.co/autotrust/JEV-9B/resolve/7ac669b8fb476ba926491e3d1c39f9330d68dbed/adapter/adapter_config.json",
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "jev-9b/adapter/adapter_model.safetensors",
+      "size_bytes": 160486456,
+      "sha256": "796386ace560ec5624bbfe83f5c505121e5c9f9654200a847f032cb333cd1f71",
+      "source": "https://huggingface.co/autotrust/JEV-9B/resolve/7ac669b8fb476ba926491e3d1c39f9330d68dbed/adapter/adapter_model.safetensors",
+      "license": "Apache-2.0",
+      "note": "The System One LoRA adapter. It stays unmerged at inference, as trained."
+    },
+    {
+      "path": "jev-9b/head.safetensors",
+      "size_bytes": 393464,
+      "sha256": "d960a6f5989402c6d08d74d8d435a21a031cc7878f3c4ac274a126c900f627e7",
+      "source": "https://huggingface.co/autotrust/JEV-9B/resolve/7ac669b8fb476ba926491e3d1c39f9330d68dbed/head.safetensors",
+      "license": "Apache-2.0",
+      "note": "The 24-slot decision head (noul 2, score 6, choice 16) read from the last hidden state."
+    },
+    {
+      "path": "jev-9b/judge_config.json",
+      "size_bytes": 1435,
+      "sha256": "0ee2ce84743b646e1c493619a8b55f71b94660f3a599467a1b8942f0eb68d677",
+      "source": "https://huggingface.co/autotrust/JEV-9B/resolve/7ac669b8fb476ba926491e3d1c39f9330d68dbed/judge_config.json",
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "jev-9b/calibration.json",
+      "size_bytes": 1007,
+      "sha256": "9644305e85fac82944ec4353742af9c0fbc6434a277d3f0e54c2abb185aaf9b8",
+      "source": "https://huggingface.co/autotrust/JEV-9B/resolve/7ac669b8fb476ba926491e3d1c39f9330d68dbed/calibration.json",
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "jev-9b/tokenizer.json",
+      "size_bytes": 19989325,
+      "sha256": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+      "source": "https://huggingface.co/autotrust/JEV-9B/resolve/7ac669b8fb476ba926491e3d1c39f9330d68dbed/tokenizer.json",
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "jev-9b/tokenizer_config.json",
+      "size_bytes": 1124,
+      "sha256": "66e427c470fe580fe8c7b5725d857af23d8417e37fae62667ec698306a19987b",
+      "source": "https://huggingface.co/autotrust/JEV-9B/resolve/7ac669b8fb476ba926491e3d1c39f9330d68dbed/tokenizer_config.json",
+      "license": "Apache-2.0"
+    }
+  ]
+}

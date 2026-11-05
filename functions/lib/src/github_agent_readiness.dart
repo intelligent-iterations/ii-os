@@ -382,12 +382,15 @@ extension GitHubAgentReadiness on GitHubClient {
           repository: repository,
           ref: sourceSha,
         );
-        final parsed = profiles.map(agentPermissionProfileFromListing).toList();
+        final parsed = [
+          for (final listing in profiles)
+            agentPermissionProfileFromListing(listing, engines: agentEngines),
+        ];
         final candidates = parsed
             .where((item) => item.workflow.file == iiOsAgentTaskWorkflow)
             .toList();
         profile = candidates
-            .where(_isExecutableProfile)
+            .where((item) => _isExecutableProfile(item, agentEngines))
             .where(
               (item) =>
                   (permissionProfileId == null ||
@@ -540,7 +543,13 @@ extension GitHubAgentReadiness on GitHubClient {
       }
     }
 
-    checks.addAll(agentProfileChecks(profile, repository: repository));
+    checks.addAll(
+      agentProfileChecks(
+        profile,
+        repository: repository,
+        engines: agentEngines,
+      ),
+    );
     if (_permissionAllows(permissions['administration'] ?? 'none', 'read')) {
       checks.add(
         await _bootstrapEnvironmentCheck(workspace, repository: repository),

@@ -1,0 +1,107 @@
+name: ii-os agent task
+run-name: ${{ inputs.operation == 'codex_auth' && format('ii-os codex auth / {0}', inputs.repository) || inputs.operation == 'codex_auth_verify' && format('ii-os codex verify / {0}', inputs.repository) || format('ii-os agent / {0}#{1} / {2}', inputs.repository, inputs.issue_number, inputs.dispatch_id) }}
+
+# The dispatch surface ii-os calls for Software Workshop tickets, Connect Codex
+# and stored-credential verification. ii-os dispatches it only on an immutable
+# ii-os-agent-v4-<sha> tag and binds the run by the title above. Each operation
+# runs a reviewed reusable body from this repository at that same tag.
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Approved ii-os agent operation
+        required: false
+        type: choice
+        options: [work_ticket, codex_auth, codex_auth_verify]
+        default: work_ticket
+      repository: {description: Target repository, required: true, type: string}
+      issue_number: {description: Existing issue number, required: false, type: string}
+      permission_profile: {description: Installed profile, required: false, type: string}
+      permission_ref: {description: Profile ref, required: true, type: string, default: dev}
+      project_item_id: {description: Project item ID, required: false, type: string}
+      permission_digest: {description: Approved profile digest, required: false, type: string}
+      dispatch_id: {description: Human deployment claim ID, required: false, type: string}
+      workspace_id: {description: Owning workspace ID, required: false, type: string}
+      codex_secret_digest: {description: Verified Codex secret digest, required: false, type: string}
+      trusted_source_sha: {description: Immutable target commit, required: false, type: string}
+      codex_auth_session_id: {description: Codex auth session, required: false, type: string}
+      codex_auth_nonce: {description: Codex auth nonce, required: false, type: string}
+      codex_auth_reauthenticate: {description: Explicitly reconnect the Codex account, required: false, type: boolean, default: false}
+      auth_smoke: {description: Token smoke only, required: false, type: boolean, default: false}
+
+  workflow_call:
+    inputs:
+      operation: {required: false, type: string, default: work_ticket}
+      repository: {required: true, type: string}
+      issue_number: {required: false, type: string}
+      permission_profile: {required: false, type: string}
+      permission_ref: {required: true, type: string}
+      project_item_id: {required: false, type: string}
+      permission_digest: {required: false, type: string}
+      dispatch_id: {required: false, type: string}
+      workspace_id: {required: false, type: string}
+      codex_secret_digest: {required: false, type: string}
+      trusted_source_sha: {required: false, type: string}
+      codex_auth_session_id: {required: false, type: string}
+      codex_auth_nonce: {required: false, type: string}
+      codex_auth_reauthenticate: {required: false, type: boolean, default: false}
+      auth_smoke: {required: false, type: boolean, default: false}
+      coordinator_source_sha: {required: true, type: string}
+permissions: {}
+
+jobs:
+  codex-auth:
+    if: ${{ inputs.operation == 'codex_auth' }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/ii-os-codex-auth.yml
+    with:
+      session_id: ${{ inputs.codex_auth_session_id }}
+      repository: ${{ inputs.repository }}
+      nonce: ${{ inputs.codex_auth_nonce }}
+      coordinator_source_sha: ${{ inputs.coordinator_source_sha || github.sha }}
+      reauthenticate: ${{ inputs.codex_auth_reauthenticate }}
+    # ii-os verifies that this reviewed body receives the caller's environment secrets.
+    secrets: inherit  # zizmor: ignore[secrets-inherit] -- the commit-pinned reviewed body is the only consumer
+
+  codex-auth-verify:
+    if: ${{ inputs.operation == 'codex_auth_verify' }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/ii-os-codex-auth-finalize.yml
+    with:
+      session_id: ${{ inputs.codex_auth_session_id }}
+      repository: ${{ inputs.repository }}
+      nonce: ${{ inputs.codex_auth_nonce }}
+      coordinator_source_sha: ${{ inputs.coordinator_source_sha || github.sha }}
+    # ii-os verifies that this reviewed body receives the caller's environment secrets.
+    secrets: inherit  # zizmor: ignore[secrets-inherit] -- the commit-pinned reviewed body is the only consumer
+
+  work-ticket:
+    if: ${{ inputs.operation == 'work_ticket' }}
+    concurrency:
+      group: ii-os-agent-${{ inputs.project_item_id }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/ii-os-agent-work-ticket.yml
+    with:
+      operation: work_ticket
+      repository: ${{ inputs.repository }}
+      issue_number: ${{ inputs.issue_number }}
+      permission_profile: ${{ inputs.permission_profile }}
+      permission_ref: ${{ inputs.permission_ref }}
+      project_item_id: ${{ inputs.project_item_id }}
+      permission_digest: ${{ inputs.permission_digest }}
+      dispatch_id: ${{ inputs.dispatch_id }}
+      workspace_id: ${{ inputs.workspace_id }}
+      codex_secret_digest: ${{ inputs.codex_secret_digest }}
+      trusted_source_sha: ${{ inputs.trusted_source_sha }}
+      auth_smoke: ${{ inputs.auth_smoke }}
+      coordinator_source_sha: ${{ inputs.coordinator_source_sha || github.sha }}
+    # ii-os verifies that this reviewed body receives the caller's environment secrets.
+    secrets: inherit  # zizmor: ignore[secrets-inherit] -- the commit-pinned reviewed body is the only consumer

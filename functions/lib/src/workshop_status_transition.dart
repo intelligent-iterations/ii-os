@@ -1,4 +1,5 @@
 import 'api_error.dart';
+import 'provider_contracts/agent_execution.dart';
 
 /// Human-controlled transitions for the Software Workshop status field.
 ///
@@ -14,6 +15,7 @@ void requireHumanWorkshopStatusTransition({
 }) {
   if (current == target) return;
   if (const {
+    ...agentExecutionLiveStatuses,
     'queued',
     'dispatching',
     'dispatched',

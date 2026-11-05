@@ -3,24 +3,29 @@ part of 'github_client.dart';
 const String _agentPermissionDirectory = '.ii-os/agent-permissions';
 
 AgentPermissionProfile agentPermissionProfileFromListing(
-  Map<String, Object?> listing,
-) {
+  Map<String, Object?> listing, {
+  AgentEngineCatalog engines = AgentEngineCatalog.codexOnly,
+}) {
   final source = Map<String, Object?>.of(listing)
     ..remove('repository')
     ..remove('ref')
     ..remove('path')
     ..remove('sha');
-  return AgentPermissionProfile.parse(source);
+  return AgentPermissionProfile.parse(source, engines: engines);
 }
 
 AgentPermissionProfile? executableAgentPermissionProfileFromListings(
   Iterable<Map<String, Object?>> listings,
-  String id,
-) {
+  String id, {
+  AgentEngineCatalog engines = AgentEngineCatalog.codexOnly,
+}) {
   for (final listing in listings) {
     if (listing['id'] != id) continue;
-    final profile = agentPermissionProfileFromListing(listing);
-    requireExecutableAgentProfile(profile);
+    final profile = agentPermissionProfileFromListing(
+      listing,
+      engines: engines,
+    );
+    requireExecutableAgentProfile(profile, engines: engines);
     return profile;
   }
   return null;
@@ -67,7 +72,15 @@ extension GitHubAgentPermissions on GitHubClient {
         );
       }
       final source = utf8.decode(base64Decode(content.replaceAll('\n', '')));
-      final profile = AgentPermissionProfile.parse(source);
+      final AgentPermissionProfile profile;
+      try {
+        profile = AgentPermissionProfile.parse(source, engines: agentEngines);
+      } on ApiError catch (error) {
+        // A profile for an engine this deployment does not offer is not
+        // offered; any other invalid profile still fails the listing.
+        if (error.code == 'agent_engine_not_configured') continue;
+        rethrow;
+      }
       profiles.add({
         ...profile.toJson(),
         'repository': repository,

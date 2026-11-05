@@ -20,19 +20,19 @@ final class GitHubWorkflowCoordinator {
   GitHubWorkflowCoordinator({
     required this.githubForWorkspace,
     required this.store,
+    required this.classificationRuntime,
     ConnectedWorkflowDiscoveryCache? connectedWorkflowCache,
-    ClassificationRuntimeGate? classificationRuntime,
   }) : connectedWorkflowCache =
-           connectedWorkflowCache ?? ConnectedWorkflowDiscoveryCache(),
-       classificationRuntime =
-           classificationRuntime ?? ClassificationRuntimeGate();
+           connectedWorkflowCache ?? ConnectedWorkflowDiscoveryCache();
 
   final GitHubClientProvider githubForWorkspace;
   final WorkspaceStore store;
   final ConnectedWorkflowDiscoveryCache connectedWorkflowCache;
 
-  /// Reads the organization's own Fleet report, at most once a minute, to
-  /// decide whether the open JEV classification runtime is installed.
+  /// Decides whether the open JEV classification runtime may run: from the
+  /// organization's runner capacity report, read at most once a minute, or
+  /// `notReported` when the deployment receives no capacity reports. The
+  /// composition root chooses which, so there is no default.
   final ClassificationRuntimeGate classificationRuntime;
 
   Future<Map<String, Object?>> refreshCatalogs(Workspace workspace) async {

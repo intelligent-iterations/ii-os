@@ -363,6 +363,59 @@ void main() {
       expect(grants.github.single.repositories, {'acme/product'});
     });
   });
+
+  group('runner pools an organization keeps by hand', () {
+    OrganizationRunnerPool pool(String id, String provider) =>
+        OrganizationRunnerPool(
+          id: id,
+          name: 'Runners',
+          provider: provider,
+          capabilities: const {'runtime-docker'},
+          maxCpu: 8,
+          maxRamMiB: 16384,
+          maxConcurrent: 1,
+          providerPoolId: 'studio',
+        );
+
+    final catalog = OrganizationResourceCatalog(
+      gcpResources: const [],
+      githubResources: const [],
+      runnerPools: [
+        pool('runner_fleet_0123456789ab', 'fleet'),
+        pool('runner_studio', 'customer'),
+      ],
+    );
+
+    test('adds and edits customer pools', () {
+      expect(
+        manualRunnerPoolRefusal(catalog, pool('runner_new', 'customer')),
+        isNull,
+      );
+      expect(
+        manualRunnerPoolRefusal(catalog, pool('runner_studio', 'customer')),
+        isNull,
+      );
+    });
+
+    test('never types a Fleet pool id by hand', () {
+      // A reported pool's provider pool id is what placement enforces, so it
+      // comes only from the organization's own capacity report.
+      expect(
+        manualRunnerPoolRefusal(catalog, pool('runner_new', 'fleet')),
+        'runner_provider_not_manual',
+      );
+    });
+
+    test('never replaces a pool that came from a capacity report', () {
+      expect(
+        manualRunnerPoolRefusal(
+          catalog,
+          pool('runner_fleet_0123456789ab', 'customer'),
+        ),
+        'runner_pool_reported',
+      );
+    });
+  });
 }
 
 OrganizationGcpResource gcp(String id, String projectId) {

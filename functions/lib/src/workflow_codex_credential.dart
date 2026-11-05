@@ -19,14 +19,15 @@ extension WorkflowCodexCredential on WorkflowApi {
     final dispatchId = requiredString(body, 'dispatchId', maxLength: 200);
     final issue = body['issueNumber'];
     if (issue is! int || issue <= 0) throw credentialConflict;
-    final profile = await AgentActivationStore(store).profileForConsumedRun(
-      principal: principal,
-      workspaceId: workspaceId,
-      projectItemId: projectItemId,
-      claimId: dispatchId,
-      issueNumber: issue,
-      allowCleanupRecovery: body['cleanupOnly'] == true,
-    );
+    final profile = await AgentActivationStore(store, engines: agentEngines)
+        .profileForConsumedRun(
+          principal: principal,
+          workspaceId: workspaceId,
+          projectItemId: projectItemId,
+          claimId: dispatchId,
+          issueNumber: issue,
+          allowCleanupRecovery: body['cleanupOnly'] == true,
+        );
     if (profile.engine != codexAgentEngine ||
         profile.runtime == null ||
         (body['permissionProfile'] != null &&

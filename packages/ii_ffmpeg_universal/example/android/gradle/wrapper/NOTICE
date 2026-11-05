@@ -1,0 +1,26 @@
+Upstream Gradle 2.10 distribution notice, preserved for the Gradle wrapper.
+Source: https://github.com/gradle/gradle/blob/v2.10/subprojects/distributions/src/toplevel/NOTICE
+This notice describes the full upstream distribution. This directory ships
+only its wrapper JAR, not the other software listed below. The Apache-2.0
+license text is supplied in this repository's top-level LICENSE.
+
+=========================================================================
+==  NOTICE file corresponding to the section 4 d of                    ==
+==  the Apache License, Version 2.0,                                   ==
+==  in this case for the Gradle distribution.                          ==
+=========================================================================
+
+This product includes software developed by
+The Apache Software Foundation (http://www.apache.org/).
+
+It includes the following other software:
+
+Groovy (http://groovy.codehaus.org)
+SLF4J (http://www.slf4j.org)
+Junit (http://www.junit.org)
+JCIFS (http://jcifs.samba.org)
+
+For licenses see the LICENSE file.
+
+If any software distributed with Gradle does not have an Apache 2 License, its license is explicitly listed in the
+LICENSE file.

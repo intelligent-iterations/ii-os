@@ -1,0 +1,438 @@
+diff --git a/acestep/local_cache.py b/acestep/local_cache.py
+index 2637335..79c8dca 100644
+--- a/acestep/local_cache.py
++++ b/acestep/local_cache.py
+@@ -1,6 +1,6 @@
+ """Local cache module to replace Redis
+
+-Uses diskcache as backend, provides Redis-compatible API.
++Uses the JSON-only SQLite backend, provides Redis-compatible API.
+ Supports persistent storage and TTL expiration.
+ """
+
+@@ -10,7 +10,7 @@ from typing import Any, Optional
+ from threading import Lock
+
+ try:
+-    from diskcache import Cache
++    from acestep_song.json_cache import JsonCache as Cache
+     HAS_DISKCACHE = True
+ except ImportError:
+     HAS_DISKCACHE = False
+@@ -19,7 +19,7 @@ except ImportError:
+ class LocalCache:
+     """
+     Local cache implementation with Redis-compatible API.
+-    Uses diskcache as backend, supports persistence and TTL.
++    Uses the JSON-only SQLite backend, supports persistence and TTL.
+     """
+
+     _instance = None
+@@ -40,7 +40,7 @@ class LocalCache:
+
+         if not HAS_DISKCACHE:
+             raise ImportError(
+-                "diskcache not installed. Run: pip install diskcache"
++                "The headless JSON result cache is unavailable"
+             )
+
+         if cache_dir is None:
+diff --git a/acestep/models/base/modeling_acestep_v15_base.py b/acestep/models/base/modeling_acestep_v15_base.py
+index f8a436d..4b0a136 100644
+--- a/acestep/models/base/modeling_acestep_v15_base.py
++++ b/acestep/models/base/modeling_acestep_v15_base.py
+@@ -578,6 +578,22 @@ class AceStepPreTrainedModel(PreTrainedModel):
+                 module.weight.data[module.padding_idx].zero_()
+         elif isinstance(module, Qwen3RMSNorm):
+             module.weight.data.fill_(1.0)
++        elif isinstance(module, ResidualFSQ):
++            # Transformers 5 materializes non-persistent buffers as empty tensors.
++            # Recreate FSQ's deterministic codebooks/scales after checkpoint load.
++            with torch.device("cpu"):
++                reference = ResidualFSQ(
++                    dim=self.config.fsq_dim,
++                    levels=self.config.fsq_input_levels,
++                    num_quantizers=self.config.fsq_input_num_quantizers,
++                )
++            for name, value in reference.named_buffers():
++                target = module.get_buffer(name)
++                if not target.is_meta:
++                    target.copy_(value.to(device=target.device, dtype=target.dtype))
++        else:
++            # Includes Transformers' rotary-frequency buffer initialization.
++            super()._init_weights(module)
+
+
+ class AceStepLyricEncoder(AceStepPreTrainedModel):
+@@ -1199,11 +1215,14 @@ class AceStepAudioTokenizer(AceStepPreTrainedModel):
+         # Pool patches into sequence-level representations
+         self.attention_pooler = AttentionPooler(config)
+         # Quantize continuous representations into discrete tokens
+-        self.quantizer = ResidualFSQ(
+-            dim=config.fsq_dim,
+-            levels=config.fsq_input_levels,
+-            num_quantizers=config.fsq_input_num_quantizers
+-        )
++        # FSQ computes scalar constants and non-persistent buffers during init.
++        # Materialize this small module while Transformers loads the model on meta.
++        with torch.device("cpu"):
++            self.quantizer = ResidualFSQ(
++                dim=config.fsq_dim,
++                levels=config.fsq_input_levels,
++                num_quantizers=config.fsq_input_num_quantizers
++            )
+         self.pool_window_size = config.pool_window_size
+         # Initialize weights and apply final processing
+         self.post_init()
+diff --git a/acestep/models/sft/modeling_acestep_v15_base.py b/acestep/models/sft/modeling_acestep_v15_base.py
+index e95c7da..7287f53 100644
+--- a/acestep/models/sft/modeling_acestep_v15_base.py
++++ b/acestep/models/sft/modeling_acestep_v15_base.py
+@@ -578,6 +578,22 @@ class AceStepPreTrainedModel(PreTrainedModel):
+                 module.weight.data[module.padding_idx].zero_()
+         elif isinstance(module, Qwen3RMSNorm):
+             module.weight.data.fill_(1.0)
++        elif isinstance(module, ResidualFSQ):
++            # Transformers 5 materializes non-persistent buffers as empty tensors.
++            # Recreate FSQ's deterministic codebooks/scales after checkpoint load.
++            with torch.device("cpu"):
++                reference = ResidualFSQ(
++                    dim=self.config.fsq_dim,
++                    levels=self.config.fsq_input_levels,
++                    num_quantizers=self.config.fsq_input_num_quantizers,
++                )
++            for name, value in reference.named_buffers():
++                target = module.get_buffer(name)
++                if not target.is_meta:
++                    target.copy_(value.to(device=target.device, dtype=target.dtype))
++        else:
++            # Includes Transformers' rotary-frequency buffer initialization.
++            super()._init_weights(module)
+
+
+ class AceStepLyricEncoder(AceStepPreTrainedModel):
+@@ -1199,11 +1215,14 @@ class AceStepAudioTokenizer(AceStepPreTrainedModel):
+         # Pool patches into sequence-level representations
+         self.attention_pooler = AttentionPooler(config)
+         # Quantize continuous representations into discrete tokens
+-        self.quantizer = ResidualFSQ(
+-            dim=config.fsq_dim,
+-            levels=config.fsq_input_levels,
+-            num_quantizers=config.fsq_input_num_quantizers
+-        )
++        # FSQ computes scalar constants and non-persistent buffers during init.
++        # Materialize this small module while Transformers loads the model on meta.
++        with torch.device("cpu"):
++            self.quantizer = ResidualFSQ(
++                dim=config.fsq_dim,
++                levels=config.fsq_input_levels,
++                num_quantizers=config.fsq_input_num_quantizers
++            )
+         self.pool_window_size = config.pool_window_size
+         # Initialize weights and apply final processing
+         self.post_init()
+diff --git a/acestep/models/turbo/modeling_acestep_v15_turbo.py b/acestep/models/turbo/modeling_acestep_v15_turbo.py
+index 013217a..3a9d46b 100644
+--- a/acestep/models/turbo/modeling_acestep_v15_turbo.py
++++ b/acestep/models/turbo/modeling_acestep_v15_turbo.py
+@@ -575,6 +575,22 @@ class AceStepPreTrainedModel(PreTrainedModel):
+                 module.weight.data[module.padding_idx].zero_()
+         elif isinstance(module, Qwen3RMSNorm):
+             module.weight.data.fill_(1.0)
++        elif isinstance(module, ResidualFSQ):
++            # Transformers 5 materializes non-persistent buffers as empty tensors.
++            # Recreate FSQ's deterministic codebooks/scales after checkpoint load.
++            with torch.device("cpu"):
++                reference = ResidualFSQ(
++                    dim=self.config.fsq_dim,
++                    levels=self.config.fsq_input_levels,
++                    num_quantizers=self.config.fsq_input_num_quantizers,
++                )
++            for name, value in reference.named_buffers():
++                target = module.get_buffer(name)
++                if not target.is_meta:
++                    target.copy_(value.to(device=target.device, dtype=target.dtype))
++        else:
++            # Includes Transformers' rotary-frequency buffer initialization.
++            super()._init_weights(module)
+
+
+ class AceStepLyricEncoder(AceStepPreTrainedModel):
+@@ -1196,11 +1212,14 @@ class AceStepAudioTokenizer(AceStepPreTrainedModel):
+         # Pool patches into sequence-level representations
+         self.attention_pooler = AttentionPooler(config)
+         # Quantize continuous representations into discrete tokens
+-        self.quantizer = ResidualFSQ(
+-            dim=config.fsq_dim,
+-            levels=config.fsq_input_levels,
+-            num_quantizers=config.fsq_input_num_quantizers
+-        )
++        # FSQ computes scalar constants and non-persistent buffers during init.
++        # Materialize this small module while Transformers loads the model on meta.
++        with torch.device("cpu"):
++            self.quantizer = ResidualFSQ(
++                dim=config.fsq_dim,
++                levels=config.fsq_input_levels,
++                num_quantizers=config.fsq_input_num_quantizers
++            )
+         self.pool_window_size = config.pool_window_size
+         # Initialize weights and apply final processing
+         self.post_init()
+diff --git a/acestep/models/xl_base/modeling_acestep_v15_xl_base.py b/acestep/models/xl_base/modeling_acestep_v15_xl_base.py
+index 18ad7f8..5f14ec4 100644
+--- a/acestep/models/xl_base/modeling_acestep_v15_xl_base.py
++++ b/acestep/models/xl_base/modeling_acestep_v15_xl_base.py
+@@ -578,6 +578,22 @@ class AceStepPreTrainedModel(PreTrainedModel):
+                 module.weight.data[module.padding_idx].zero_()
+         elif isinstance(module, Qwen3RMSNorm):
+             module.weight.data.fill_(1.0)
++        elif isinstance(module, ResidualFSQ):
++            # Transformers 5 materializes non-persistent buffers as empty tensors.
++            # Recreate FSQ's deterministic codebooks/scales after checkpoint load.
++            with torch.device("cpu"):
++                reference = ResidualFSQ(
++                    dim=self.config.fsq_dim,
++                    levels=self.config.fsq_input_levels,
++                    num_quantizers=self.config.fsq_input_num_quantizers,
++                )
++            for name, value in reference.named_buffers():
++                target = module.get_buffer(name)
++                if not target.is_meta:
++                    target.copy_(value.to(device=target.device, dtype=target.dtype))
++        else:
++            # Includes Transformers' rotary-frequency buffer initialization.
++            super()._init_weights(module)
+
+
+ class AceStepLyricEncoder(AceStepPreTrainedModel):
+@@ -1205,11 +1221,14 @@ class AceStepAudioTokenizer(AceStepPreTrainedModel):
+         # Pool patches into sequence-level representations
+         self.attention_pooler = AttentionPooler(config)
+         # Quantize continuous representations into discrete tokens
+-        self.quantizer = ResidualFSQ(
+-            dim=config.fsq_dim,
+-            levels=config.fsq_input_levels,
+-            num_quantizers=config.fsq_input_num_quantizers
+-        )
++        # FSQ computes scalar constants and non-persistent buffers during init.
++        # Materialize this small module while Transformers loads the model on meta.
++        with torch.device("cpu"):
++            self.quantizer = ResidualFSQ(
++                dim=config.fsq_dim,
++                levels=config.fsq_input_levels,
++                num_quantizers=config.fsq_input_num_quantizers
++            )
+         self.pool_window_size = config.pool_window_size
+         # Initialize weights and apply final processing
+         self.post_init()
+diff --git a/acestep/models/xl_sft/modeling_acestep_v15_xl_base.py b/acestep/models/xl_sft/modeling_acestep_v15_xl_base.py
+index 18ad7f8..5f14ec4 100644
+--- a/acestep/models/xl_sft/modeling_acestep_v15_xl_base.py
++++ b/acestep/models/xl_sft/modeling_acestep_v15_xl_base.py
+@@ -578,6 +578,22 @@ class AceStepPreTrainedModel(PreTrainedModel):
+                 module.weight.data[module.padding_idx].zero_()
+         elif isinstance(module, Qwen3RMSNorm):
+             module.weight.data.fill_(1.0)
++        elif isinstance(module, ResidualFSQ):
++            # Transformers 5 materializes non-persistent buffers as empty tensors.
++            # Recreate FSQ's deterministic codebooks/scales after checkpoint load.
++            with torch.device("cpu"):
++                reference = ResidualFSQ(
++                    dim=self.config.fsq_dim,
++                    levels=self.config.fsq_input_levels,
++                    num_quantizers=self.config.fsq_input_num_quantizers,
++                )
++            for name, value in reference.named_buffers():
++                target = module.get_buffer(name)
++                if not target.is_meta:
++                    target.copy_(value.to(device=target.device, dtype=target.dtype))
++        else:
++            # Includes Transformers' rotary-frequency buffer initialization.
++            super()._init_weights(module)
+
+
+ class AceStepLyricEncoder(AceStepPreTrainedModel):
+@@ -1205,11 +1221,14 @@ class AceStepAudioTokenizer(AceStepPreTrainedModel):
+         # Pool patches into sequence-level representations
+         self.attention_pooler = AttentionPooler(config)
+         # Quantize continuous representations into discrete tokens
+-        self.quantizer = ResidualFSQ(
+-            dim=config.fsq_dim,
+-            levels=config.fsq_input_levels,
+-            num_quantizers=config.fsq_input_num_quantizers
+-        )
++        # FSQ computes scalar constants and non-persistent buffers during init.
++        # Materialize this small module while Transformers loads the model on meta.
++        with torch.device("cpu"):
++            self.quantizer = ResidualFSQ(
++                dim=config.fsq_dim,
++                levels=config.fsq_input_levels,
++                num_quantizers=config.fsq_input_num_quantizers
++            )
+         self.pool_window_size = config.pool_window_size
+         # Initialize weights and apply final processing
+         self.post_init()
+diff --git a/acestep/models/xl_turbo/modeling_acestep_v15_xl_turbo.py b/acestep/models/xl_turbo/modeling_acestep_v15_xl_turbo.py
+index 9733a24..d1ea6c7 100644
+--- a/acestep/models/xl_turbo/modeling_acestep_v15_xl_turbo.py
++++ b/acestep/models/xl_turbo/modeling_acestep_v15_xl_turbo.py
+@@ -575,6 +575,22 @@ class AceStepPreTrainedModel(PreTrainedModel):
+                 module.weight.data[module.padding_idx].zero_()
+         elif isinstance(module, Qwen3RMSNorm):
+             module.weight.data.fill_(1.0)
++        elif isinstance(module, ResidualFSQ):
++            # Transformers 5 materializes non-persistent buffers as empty tensors.
++            # Recreate FSQ's deterministic codebooks/scales after checkpoint load.
++            with torch.device("cpu"):
++                reference = ResidualFSQ(
++                    dim=self.config.fsq_dim,
++                    levels=self.config.fsq_input_levels,
++                    num_quantizers=self.config.fsq_input_num_quantizers,
++                )
++            for name, value in reference.named_buffers():
++                target = module.get_buffer(name)
++                if not target.is_meta:
++                    target.copy_(value.to(device=target.device, dtype=target.dtype))
++        else:
++            # Includes Transformers' rotary-frequency buffer initialization.
++            super()._init_weights(module)
+
+
+ class AceStepLyricEncoder(AceStepPreTrainedModel):
+@@ -1202,11 +1218,14 @@ class AceStepAudioTokenizer(AceStepPreTrainedModel):
+         # Pool patches into sequence-level representations
+         self.attention_pooler = AttentionPooler(config)
+         # Quantize continuous representations into discrete tokens
+-        self.quantizer = ResidualFSQ(
+-            dim=config.fsq_dim,
+-            levels=config.fsq_input_levels,
+-            num_quantizers=config.fsq_input_num_quantizers
+-        )
++        # FSQ computes scalar constants and non-persistent buffers during init.
++        # Materialize this small module while Transformers loads the model on meta.
++        with torch.device("cpu"):
++            self.quantizer = ResidualFSQ(
++                dim=config.fsq_dim,
++                levels=config.fsq_input_levels,
++                num_quantizers=config.fsq_input_num_quantizers
++            )
+         self.pool_window_size = config.pool_window_size
+         # Initialize weights and apply final processing
+         self.post_init()
+diff --git a/acestep/third_parts/nano-vllm/nanovllm/models/qwen3.py b/acestep/third_parts/nano-vllm/nanovllm/models/qwen3.py
+index 4db4d26..67dbd40 100755
+--- a/acestep/third_parts/nano-vllm/nanovllm/models/qwen3.py
++++ b/acestep/third_parts/nano-vllm/nanovllm/models/qwen3.py
+@@ -124,6 +124,10 @@ class Qwen3DecoderLayer(nn.Module):
+         config: Qwen3Config,
+     ) -> None:
+         super().__init__()
++        # Transformers 5 represents even unscaled RoPE as a parameter mapping.
++        rope_parameters = config.rope_parameters or {}
++        if rope_parameters.get("rope_type", "default") != "default":
++            raise ValueError("nano-vllm supports only default Qwen3 RoPE")
+         self.self_attn = Qwen3Attention(
+             hidden_size=config.hidden_size,
+             num_heads=config.num_attention_heads,
+@@ -132,8 +136,8 @@ class Qwen3DecoderLayer(nn.Module):
+             rms_norm_eps=config.rms_norm_eps,
+             qkv_bias=getattr(config, 'attention_bias', True),
+             head_dim=getattr(config, 'head_dim', None),
+-            rope_theta=getattr(config, "rope_theta", 1000000),
+-            rope_scaling=getattr(config, "rope_scaling", None),
++            rope_theta=rope_parameters.get("rope_theta", 1000000),
++            rope_scaling=None,
+         )
+         self.mlp = Qwen3MLP(
+             hidden_size=config.hidden_size,
+diff --git a/acestep/ui/gradio/api/api_routes.py b/acestep/ui/gradio/api/api_routes.py
+index 20612c5..1ce4020 100644
+--- a/acestep/ui/gradio/api/api_routes.py
++++ b/acestep/ui/gradio/api/api_routes.py
+@@ -100,10 +100,10 @@ async def verify_api_key(authorization: Optional[str] = Header(None)):
+
+ # Use diskcache to store results
+ try:
+-    import diskcache
++    from acestep_song.json_cache import JsonCache
+     _cache_dir = os.path.join(os.path.dirname(__file__), ".cache", "api_results")
+     os.makedirs(_cache_dir, exist_ok=True)
+-    _result_cache = diskcache.Cache(_cache_dir)
++    _result_cache = JsonCache(_cache_dir)
+     DISKCACHE_AVAILABLE = True
+ except ImportError:
+     _result_cache = {}
+diff --git a/acestep/ui/gradio/events/results/generation_info.py b/acestep/ui/gradio/events/results/generation_info.py
+index 8231130..f6620f0 100644
+--- a/acestep/ui/gradio/events/results/generation_info.py
++++ b/acestep/ui/gradio/events/results/generation_info.py
+@@ -19,7 +19,7 @@ PROJECT_ROOT = os.path.dirname(
+         os.path.dirname(os.path.abspath(__file__))))))
+ )
+ DEFAULT_RESULTS_DIR = os.path.join(PROJECT_ROOT, "gradio_outputs").replace("\\", "/")
+-os.makedirs(DEFAULT_RESULTS_DIR, exist_ok=True)
++# Headless API imports timing formatting only; importing must not create UI output directories.
+
+
+ def clear_audio_outputs_for_new_generation():
+diff --git a/pyproject.toml b/pyproject.toml
+index b353723..fa78fcd 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -1,6 +1,6 @@
+ [project]
+ name = "ace-step"
+-version = "1.5.0"
++version = "1.5.0+headless.1"
+ description = "ACE-Step 1.5"
+ readme = "README.md"
+ requires-python = ">=3.11,<3.13"
+@@ -11,9 +11,9 @@ dependencies = [
+     "torchvision==0.22.1+cu128; sys_platform == 'win32'",
+     "torchaudio==2.7.1+cu128; sys_platform == 'win32'",
+     # PyTorch for Linux x86_64 with CUDA 12.8
+-    "torch==2.10.0+cu128; sys_platform == 'linux' and platform_machine == 'x86_64'",
+-    "torchvision==0.25.0+cu128; sys_platform == 'linux' and platform_machine == 'x86_64'",
+-    "torchaudio==2.10.0+cu128; sys_platform == 'linux' and platform_machine == 'x86_64'",
++    "torch==2.13.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
++    "torchvision==0.28.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
++    "torchaudio==2.11.1; sys_platform == 'linux' and platform_machine == 'x86_64'",
+     # PyTorch for Linux aarch64 with CUDA 13.0 (e.g. NVIDIA DGX Spark)
+     "torch==2.10.0+cu130; sys_platform == 'linux' and platform_machine == 'aarch64'",
+     "torchvision==0.25.0+cu130; sys_platform == 'linux' and platform_machine == 'aarch64'",
+@@ -23,9 +23,8 @@ dependencies = [
+     "torchvision; sys_platform == 'darwin' and platform_machine == 'arm64'",
+     "torchaudio>=2.9.1; sys_platform == 'darwin' and platform_machine == 'arm64'",
+     # Common dependencies
+-    "transformers>=4.51.0,<4.58.0",
+-    "diffusers>=0.37.0",
+-    "gradio==6.2.0",
++    "transformers>=5.10.1,<6",
++    "diffusers==0.38.0",
+     "matplotlib>=3.7.5",
+     "scipy>=1.10.1",
+     "soundfile>=0.13.1",
+@@ -33,13 +32,12 @@ dependencies = [
+     "einops>=0.8.1",
+     "accelerate>=1.12.0",
+     "fastapi>=0.110.0",
+-    "diskcache",
+     "uvicorn[standard]>=0.27.0",
+     "python-multipart>=0.0.18",
+     "numba>=0.63.1",
+     "vector-quantize-pytorch>=1.27.15",
+     "torchcodec>=0.9.1; platform_machine != 'aarch64'",
+-    "torchao>=0.16.0,<0.17.0; platform_machine != 'aarch64'",
++    "torchao==0.18.0; platform_machine != 'aarch64'",
+     "torchao; platform_machine == 'aarch64'",
+     "toml",
+     # MLX dependencies (Apple Silicon native acceleration - macOS only)
+@@ -58,7 +56,7 @@ dependencies = [
+     "typer-slim>=0.21.1",
+     "pytorch-wavelets>=1.3.0",
+     "pywavelets>=1.9.0",
+-    "setuptools<72",
++    "setuptools>=84.1.0",
+ ]
+
+ [[tool.uv.index]]

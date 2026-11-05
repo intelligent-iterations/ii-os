@@ -310,6 +310,7 @@ bool githubAppPermissionEditPending({
 List<Map<String, Object?>> agentProfileChecks(
   AgentPermissionProfile? profile, {
   required String repository,
+  AgentEngineCatalog engines = AgentEngineCatalog.codexOnly,
 }) {
   if (profile?.runtime != null) {
     return [
@@ -327,7 +328,10 @@ List<Map<String, Object?>> agentProfileChecks(
   }
   final capabilities = profile?.fleet.capabilities.toSet() ?? const <String>{};
   final engine = profile?.engine ?? codexAgentEngine;
-  final missing = agentCapabilitiesForEngine(engine).difference(capabilities);
+  final missing = agentCapabilitiesForEngine(
+    engine,
+    engines,
+  ).difference(capabilities);
   final hasRuntime = capabilities.any((item) => item.startsWith('runtime-'));
   final binding = profile?.secretInjection.bindings
       .where(

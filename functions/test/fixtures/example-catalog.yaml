@@ -396,3 +396,167 @@ workflows:
       - kind: audio
         content_types: [audio/mpeg, audio/wav]
         max_bytes: 524288000
+  - id: image-create-reference-qwen-2511
+    name: Qwen Image with References
+    model: Qwen Image Edit 2511 FP8 Mixed
+    contract_version: 1
+    dispatch_workflow: .github/workflows/qwen-image-edit.yml
+    inputs:
+      mode:
+        type: string
+        required: true
+        max_length: 8
+        allowed_values: [edit]
+      source_asset_id:
+        type: string
+        required: true
+        max_length: 64
+      source_asset_id_2:
+        type: string
+        required: false
+        max_length: 64
+      source_asset_id_3:
+        type: string
+        required: false
+        max_length: 64
+      prompt:
+        type: string
+        required: true
+        max_length: 30000
+      seed:
+        type: number
+        required: false
+    outputs:
+      - kind: image
+        content_types: [image/png, image/jpeg, image/webp]
+        max_bytes: 52428800
+  - id: image-create-reference-flux2-klein
+    name: FLUX.2 Klein with References
+    model: FLUX.2 Klein 4B Base Image Edit
+    contract_version: 1
+    dispatch_workflow: .github/workflows/flux2-klein-image-edit.yml
+    inputs:
+      mode:
+        type: string
+        required: true
+        max_length: 8
+        allowed_values: [edit]
+      source_asset_id:
+        type: string
+        required: true
+        max_length: 64
+      source_asset_id_2:
+        type: string
+        required: false
+        max_length: 64
+      prompt:
+        type: string
+        required: true
+        max_length: 30000
+      seed:
+        type: number
+        required: false
+    outputs:
+      - kind: image
+        content_types: [image/png, image/jpeg, image/webp]
+        max_bytes: 52428800
+  - id: image-edit-flux2-klein
+    name: FLUX.2 Klein Image Edit 4B
+    model: FLUX.2 Klein 4B Base Image Edit
+    contract_version: 1
+    dispatch_workflow: .github/workflows/flux2-klein-image-edit.yml
+    inputs:
+      mode:
+        type: string
+        required: true
+        max_length: 8
+        allowed_values: [edit]
+      source_asset_id:
+        type: string
+        required: true
+        max_length: 64
+      source_asset_id_2:
+        type: string
+        required: false
+        max_length: 64
+      prompt:
+        type: string
+        required: true
+        max_length: 30000
+      seed:
+        type: number
+        required: false
+    outputs:
+      - kind: image
+        content_types: [image/png, image/jpeg, image/webp]
+        max_bytes: 52428800
+  - id: seedvr2-video-upscale
+    name: SeedVR2 Video Upscale
+    model: SeedVR2 3B FP16
+    contract_version: 1
+    dispatch_workflow: .github/workflows/seedvr2-video-upscale.yml
+    inputs:
+      source_asset_id:
+        type: string
+        required: true
+        max_length: 64
+      target_resolution:
+        type: number
+        required: true
+        minimum: 1080
+        maximum: 1080
+        default: 1080
+      quality_preset:
+        type: string
+        required: true
+        max_length: 16
+        allowed_values: [quality]
+      preserve_audio:
+        type: boolean
+        required: true
+      seed:
+        type: number
+        required: true
+        minimum: 0
+        maximum: 4294967295
+        default: 42
+    runtime_estimates:
+      - baseline_runtime_seconds: 135
+        hardware: Example 24 GB GPU
+        measured_at: 2026-08-30
+    outputs:
+      - kind: video
+        content_types: [video/mp4]
+        max_bytes: 2147483648
+  - id: classification-open-jev-9b
+    name: Open JEV 9B Classification
+    model: autotrust/JEV-9B
+    contract_version: 1
+    dispatch_workflow: .github/workflows/open-jev-classification.yml
+    inputs:
+      state:
+        type: string
+        required: true
+        max_length: 8000
+      questions:
+        type: string
+        required: true
+        max_length: 32000
+    outputs:
+      - kind: decisions
+        content_types: [application/json]
+        max_bytes: 1048576
+  - id: video-editor-render
+    name: Workspace video render
+    model: FFmpeg
+    contract_version: 1
+    dispatch_workflow: .github/workflows/video-editor-render.yml
+    inputs:
+      render_manifest:
+        type: string
+        required: true
+        max_length: 60000
+    outputs:
+      - kind: video
+        content_types: [video/mp4, video/webm]
+        max_bytes: 536870912

@@ -35,6 +35,11 @@ for package in "${dart_packages[@]}" functions; do
   (cd "$package" && dart pub get --enforce-lockfile)
 done
 
+# The workflow kit's scripts and runner adapters: standard-library unittest,
+# offline, no bytecode left behind in the tree.
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
+  -s examples/implementation -t examples/implementation -p 'test_*.py'
+
 flutter analyze
 # Goldens are rendered on macOS/arm64 and differ on other hosts; run them
 # locally with `flutter test --tags golden` before changing UI.
@@ -58,6 +63,29 @@ done
   dart analyze
   dart test
 )
+# Agent execution builds the pinned public agent runtime from its exact commit.
+# --ignore-scripts keeps every other dependency's install scripts from running.
+(
+  cd agent_execution
+  node -e 'const [major, minor] = process.versions.node.split(".").map(Number);
+    if (major < 22 || (major === 22 && minor < 16)) {
+      console.error(`agent_execution needs Node.js 22.16 or later; found ${process.versions.node}`);
+      process.exit(1);
+    }'
+  npm ci --ignore-scripts --no-audit --no-fund
+  npm test
+)
+# The copyable agent workflow kit: its helpers, providers and controllers run
+# offline against the agent_execution package installed above.
+(
+  cd examples/implementation
+  PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests/agent -p 'test_*.py'
+  II_OS_AGENT_EXECUTION_DIR="$repo_root/agent_execution" node --test tests/agent/*.test.mjs
+)
+
+# Mobile release and FFmpeg engine tooling: identity, engine pins, settings,
+# and the upload gate. Hermetic: no network, account, or credential.
+tool/release_tooling_test.sh
 
 flutter build web --release
 echo "PASS: ii-os public quality gate"

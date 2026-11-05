@@ -6,7 +6,7 @@ void main() {
     final model = CharacterModel.fromJson({
       'id': 'character-1',
       'workspaceId': 'workspace-1',
-      'name': 'Amaru',
+      'name': 'Example hero',
       'goal': 'Lead character',
       'answers': {'artStyle': 'Concept art', 'nose': 'Broad nose'},
       'prompt': 'Saved prompt',
@@ -39,7 +39,7 @@ void main() {
       'updatedAt': '2026-07-14T10:05:00.000Z',
     });
 
-    expect(model.name, 'Amaru');
+    expect(model.name, 'Example hero');
     expect(model.isDraft, isTrue);
     expect(model.answeredQuestions, 2);
     expect(model.lastGenerationJobId, 'job-123');

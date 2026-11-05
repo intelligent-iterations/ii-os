@@ -25,8 +25,8 @@ final class AgentTicketDispatcher {
     required this.store,
     required this.audit,
     required this.codexAuth,
-    AgentActivationStore? activations,
-  }) : activations = activations ?? AgentActivationStore(store);
+    required this.activations,
+  });
 
   final WorkspaceStore store;
   final AuditSink audit;

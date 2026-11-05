@@ -3,22 +3,59 @@ import 'api_error.dart';
 /// Catalog workflows whose execution needs the open JEV decision runtime.
 const classificationWorkflowIdPrefix = 'classification-';
 
-/// The Fleet capability a host advertises only once the pinned open JEV image
-/// and its verified model weights are installed on it.
+/// The capability a reported host advertises only once the pinned open JEV
+/// image and its verified model weights are installed on it.
 const classificationRequiredCapabilities = <String>['open-jev-9b'];
 
 const classificationRuntimeUnavailableReason =
-    'Waiting for the open JEV runtime image to be installed on a Fleet GPU '
-    'host.';
+    'No runner has the classification model installed yet.';
 const classificationRuntimeUnknownReason =
-    'Waiting for a fresh Fleet report to confirm the open JEV runtime.';
+    'Waiting for your runners to confirm the classification model is '
+    'installed.';
 
-/// Whether an organization's own Fleet can run classification right now.
+const runnerCapacityProviderSetting = 'II_OS_RUNNER_CAPACITY_PROVIDER';
+
+/// Whether classification can run right now, as runner capacity reports say.
 ///
 /// `unknown` is kept distinct from `unavailable`: a missing, stale, or
 /// unreadable report says nothing about the hosts, so the UI must not claim the
-/// runtime is absent when it only failed to find out.
-enum ClassificationRuntimeStatus { unknown, unavailable, available }
+/// runtime is absent when it only failed to find out. `notReported` means the
+/// deployment receives no capacity reports at all: classification is offered,
+/// and the workflow's own model-folder check names a missing model at run time.
+enum ClassificationRuntimeStatus {
+  unknown,
+  unavailable,
+  available,
+  notReported,
+}
+
+/// Where a deployment's runner capacity reports come from.
+///
+/// `fleet` reads each organization's runner control-plane report (the stored
+/// `fleetSnapshots` document). `none` declares that the deployment receives no
+/// capacity reports, so nothing is read.
+enum RunnerCapacityProvider { fleet, none }
+
+/// Parses [runnerCapacityProviderSetting]; an unsupported value stops startup.
+RunnerCapacityProvider parseRunnerCapacityProvider(String value) =>
+    switch (value.trim()) {
+      'fleet' => RunnerCapacityProvider.fleet,
+      'none' => RunnerCapacityProvider.none,
+      _ => throw const FormatException(
+        '$runnerCapacityProviderSetting must be fleet or none.',
+      ),
+    };
+
+/// The composition root's one place that turns the setting into a reader.
+ClassificationRuntimeGate classificationRuntimeGateFor(
+  RunnerCapacityProvider provider, {
+  required FleetSnapshotReader fleetReports,
+}) => ClassificationRuntimeGate(
+  reader: switch (provider) {
+    RunnerCapacityProvider.fleet => fleetReports,
+    RunnerCapacityProvider.none => null,
+  },
+);
 
 /// Reads the latest fleet report for one organization, or null if none exists.
 ///
@@ -53,7 +90,9 @@ ClassificationRuntimeStatus evaluateClassificationRuntime(
 
 /// One fleet-report read per organization per [ttl], shared by concurrent
 /// callers. A failed read is cached as `unknown` for the same window so an
-/// outage cannot turn every page load into a fresh database read.
+/// outage cannot turn every page load into a fresh database read. Without a
+/// [reader] the deployment receives no capacity reports: every status is
+/// `notReported` and nothing is read.
 final class ClassificationRuntimeGate {
   ClassificationRuntimeGate({
     this.reader,
@@ -68,7 +107,10 @@ final class ClassificationRuntimeGate {
 
   Future<ClassificationRuntimeStatus> status(String organizationId) {
     final read = reader;
-    if (read == null || organizationId.isEmpty) {
+    if (read == null) {
+      return Future.value(ClassificationRuntimeStatus.notReported);
+    }
+    if (organizationId.isEmpty) {
       return Future.value(ClassificationRuntimeStatus.unknown);
     }
     final now = _clock();
@@ -103,20 +145,20 @@ final class _GateEntry {
 /// Adds the runtime requirement to a template and narrows `enabled`.
 ///
 /// Workspace selection is decided first and its reason wins: an operator who
-/// has not enabled the workflow needs that instruction, not a Fleet one.
+/// has not enabled the workflow needs that instruction, not a runner one.
 Map<String, Object?> applyClassificationRuntime(
   Map<String, Object?> template,
   ClassificationRuntimeStatus status,
 ) {
   final selected = template['enabled'] == true;
-  final available = status == ClassificationRuntimeStatus.available;
   return {
     ...template,
-    'enabled': selected && available,
+    'enabled': selected && classificationRuntimeAdmits(status),
     'disabledReason': !selected
         ? template['disabledReason']
         : switch (status) {
-            ClassificationRuntimeStatus.available => '',
+            ClassificationRuntimeStatus.available ||
+            ClassificationRuntimeStatus.notReported => '',
             ClassificationRuntimeStatus.unavailable =>
               classificationRuntimeUnavailableReason,
             ClassificationRuntimeStatus.unknown =>
@@ -129,9 +171,17 @@ Map<String, Object?> applyClassificationRuntime(
   };
 }
 
-/// Refuses a classification dispatch the organization's Fleet cannot place.
+/// Whether a classification run may be offered and dispatched.
+///
+/// Reported capacity must show the runtime installed. A deployment that
+/// reports no capacity admits the run and lets the workflow check its model.
+bool classificationRuntimeAdmits(ClassificationRuntimeStatus status) =>
+    status == ClassificationRuntimeStatus.available ||
+    status == ClassificationRuntimeStatus.notReported;
+
+/// Refuses a classification dispatch reported runner capacity cannot place.
 void requireClassificationRuntime(ClassificationRuntimeStatus status) {
-  if (status == ClassificationRuntimeStatus.available) return;
+  if (classificationRuntimeAdmits(status)) return;
   throw ApiError(
     409,
     'classification_runtime_unavailable',

@@ -13,6 +13,7 @@ import '../widgets/data_plane_status.dart';
 import 'organization_resources_dialogs.dart';
 
 part 'organization_resources_widgets.dart';
+part 'organization_runner_pools_card.dart';
 
 class OrganizationResourcesScreen extends StatelessWidget {
   const OrganizationResourcesScreen({
@@ -47,6 +48,8 @@ class OrganizationResourcesScreen extends StatelessWidget {
         model: model,
         embedded: embedded,
         onAddGcp: () => _addGcp(context, model),
+        onAddRunner: () => _addRunner(context, model),
+        onEditRunner: (pool) => _editRunner(context, model, pool),
         onSyncRunner: model.syncFleetRunnerPool,
         onPromoteLegacy: model.promoteLegacySetup,
       ),
@@ -62,6 +65,26 @@ class OrganizationResourcesScreen extends StatelessWidget {
       organizationId: model.organization.id,
     );
     if (input != null) await model.addGcp(input);
+  }
+
+  Future<void> _addRunner(
+    BuildContext context,
+    OrganizationResourcesViewModel model,
+  ) async {
+    final input = await showOrganizationRunnerPoolDialog(context);
+    if (input != null) await model.addCustomerRunner(input);
+  }
+
+  Future<void> _editRunner(
+    BuildContext context,
+    OrganizationResourcesViewModel model,
+    OrganizationRunnerPoolModel pool,
+  ) async {
+    final input = await showOrganizationRunnerPoolDialog(
+      context,
+      existing: pool,
+    );
+    if (input != null) await model.updateCustomerRunner(pool, input);
   }
 }
 

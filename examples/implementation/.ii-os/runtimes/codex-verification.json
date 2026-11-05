@@ -1,0 +1,58 @@
+{
+  "credentialBindings": [
+    {
+      "assignment": "harness.codex.oauth",
+      "key": "CODEX_AUTH_JSON",
+      "provider": "github-actions",
+      "resource": "acme-co/example-app"
+    }
+  ],
+  "environment": {
+    "cpu": 2,
+    "diskGiB": 8,
+    "hosting": {
+      "provider": "github"
+    },
+    "image": "registry.example.com/acme-co/ii-os-agent-worker@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "memoryMiB": 2048,
+    "provider": "docker",
+    "setup": {
+      "enabled": false
+    },
+    "userNamespaces": true
+  },
+  "harness": {
+    "model": "gpt-5.6-sol",
+    "name": "codex",
+    "version": "0.164.0"
+  },
+  "id": "codex-credential-verification",
+  "instructions": "Complete the credential verification prompt by creating only /workspace/repository/ok.txt containing exactly ok in this disposable canary workspace. This single file write is authorized. Do not change any other file, perform other repository work, commit, or publish anything.",
+  "limits": {
+    "computeMicrousdPerMinute": 0,
+    "enabled": false,
+    "inputMicrousdPerMillionTokens": 1,
+    "maxConcurrent": 1,
+    "maxCostMicrousdPerMonth": 1,
+    "maxInputTokensPerRequest": 1000000,
+    "maxModelCostMicrousdPerRun": 1,
+    "maxModelRequests": 1000,
+    "maxOutputTokensPerRequest": 100000,
+    "maxRunsPerMonth": 1000,
+    "maxRunsPerSubject": 1,
+    "outputMicrousdPerMillionTokens": 1,
+    "timeoutMinutes": 3
+  },
+  "revision": "2026-11-04.1",
+  "schemaVersion": 2,
+  "source": {
+    "additionalRepositories": [],
+    "appId": 1234567,
+    "installationId": 76543210,
+    "permissions": {
+      "contents": "read"
+    },
+    "provider": "github",
+    "repository": "acme-co/example-app"
+  }
+}

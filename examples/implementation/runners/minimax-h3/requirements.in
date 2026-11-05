@@ -1,0 +1,75 @@
+# What the minimax-h3 image installs, before resolution. The Dockerfile
+# installs the installer from requirements-build.lock.txt, then
+# requirements.lock.txt, generated from this file, both with
+# `pip install --require-hashes --no-deps`, so every package (dependencies
+# included) is pinned to an exact version and hash. After changing anything
+# here or a revision in the Dockerfile, delete both lock files (uv keeps an
+# existing lock's pins) and regenerate them from the kit root:
+#
+#   uv pip compile runners/minimax-h3/requirements.in --generate-hashes \
+#     --python-version 3.12 --python-platform x86_64-manylinux_2_39 \
+#     --exclude-newer 2026-10-28 --output-file runners/minimax-h3/requirements.lock.txt
+#   printf 'pip\nsetuptools\nwheel\n' | uv pip compile - --generate-hashes \
+#     --python-version 3.12 --python-platform x86_64-manylinux_2_39 --exclude-newer 2026-10-28 \
+#     -c runners/minimax-h3/requirements.lock.txt \
+#     --output-file runners/minimax-h3/requirements-build.lock.txt
+#
+# Python 3.12 and glibc 2.39 are the image's Ubuntu 24.04 base. Set
+# --exclude-newer to a date at least a week back, so no release younger than
+# that enters the lock.
+
+# PyTorch 2.13.0 on PyPI is the CUDA 13.0 build. The MiniMax H3 profile's
+# timings were measured on torch 2.11.0, which carries GHSA-rrmf-rvhw-rf47 and
+# holds setuptools below the release that fixes GHSA-h35f-9h28-mq5c and
+# GHSA-xmj3-9gf7-h52w; 2.13.0 fixes all three. torchaudio 2.11 supports
+# torch 2.11 and every later release.
+torch==2.13.0
+torchvision==0.28.0
+torchaudio==2.11.1
+
+# nvcc and the CUDA headers, used at image build time to compile SageAttention.
+# The version is the one torch 2.13.0 requires.
+cuda-toolkit[cccl,crt,cudart,nvcc,nvvm]==13.0.3.0
+
+# SageAttention is compiled from a pinned commit without build isolation, so
+# its build requirements come from this lock too.
+setuptools
+wheel
+ninja
+packaging
+
+# ComfyUI's requirements.txt at commit e01fb4c56b7a88149d469b99cbbfe3223d715054
+# (COMFYUI_REVISION in the Dockerfile), unchanged. Update this block whenever
+# that revision moves; the image build fails if any of these is missing.
+comfyui-frontend-package==1.48.7
+comfyui-workflow-templates==0.11.41
+comfyui-embedded-docs==0.5.9
+torchsde
+numpy>=1.25.0
+einops
+transformers>=4.50.3
+tokenizers>=0.13.3
+sentencepiece
+safetensors>=0.4.2
+aiohttp>=3.11.8
+yarl>=1.18.0
+pyyaml
+Pillow
+scipy
+tqdm
+psutil
+alembic
+SQLAlchemy>=2.0.0
+filelock
+av>=16.0.0
+comfy-kitchen==0.2.31
+comfy-aimdo==0.4.13
+requests
+simpleeval>=1.0.0
+blake3
+kornia>=0.7.1
+spandrel
+pydantic~=2.0
+pydantic-settings~=2.0
+PyOpenGL>=3.1.8
+comfy-angle

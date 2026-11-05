@@ -22,13 +22,17 @@ final class ClientErrorRateLimiter {
   final Map<String, List<DateTime>> _events = {};
   final List<DateTime> _globalEvents = [];
 
+  /// Retained actor buckets, for observing the in-memory capacity bound.
+  int get trackedActorCount => _events.length;
+
   bool allow(String actorId) {
     final now = _clock().toUtc();
     final cutoff = now.subtract(window);
     _globalEvents.removeWhere((occurredAt) => !occurredAt.isAfter(cutoff));
+    if (_globalEvents.length >= maxGlobalEvents) return false;
     final events = _events.putIfAbsent(actorId, () => []);
     events.removeWhere((occurredAt) => !occurredAt.isAfter(cutoff));
-    if (events.length >= maxEvents || _globalEvents.length >= maxGlobalEvents) {
+    if (events.length >= maxEvents) {
       return false;
     }
     events.add(now);

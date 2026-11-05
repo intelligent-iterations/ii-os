@@ -1,0 +1,47 @@
+# Workflow kit template. GitHub never runs workflows below examples/; move the
+# kit to the root of your ii-os fork and fill in the settings first. See
+# docs/mobile-release.md.
+#
+# The catalog entry `mobile-update-ios` dispatches this wrapper when a
+# signed-in operator presses Update in the iOS app. It takes no
+# client-controlled target: it always builds the reviewed branch head, signs
+# it, and uploads it to App Store Connect for TestFlight processing.
+name: iOS update
+run-name: iOS update / ${{ inputs.ii_request_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      ii_request_id:
+        description: ii-os workflow request identity
+        required: false
+        type: string
+      ii_payload_mode:
+        description: ii-os payload delivery mode (unused; this workflow takes no payload)
+        required: false
+        type: string
+
+permissions: {}
+
+# One run per ii-os request; the release job itself is serialised so two
+# updates never publish at once.
+concurrency:
+  group: mobile-update-ios-${{ inputs.ii_request_id }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publish iOS update
+    permissions:
+      contents: read
+    uses: ./.github/workflows/release-ios.yml
+    with:
+      publish: true
+    secrets:
+      II_OS_APP_STORE_CONNECT_API_KEY: ${{ secrets.II_OS_APP_STORE_CONNECT_API_KEY }}
+      II_OS_APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.II_OS_APP_STORE_CONNECT_API_KEY_ID }}
+      II_OS_APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.II_OS_APP_STORE_CONNECT_ISSUER_ID }}
+      II_OS_IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64: ${{ secrets.II_OS_IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64 }}
+      II_OS_IOS_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.II_OS_IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+      II_OS_IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.II_OS_IOS_PROVISIONING_PROFILE_BASE64 }}
+      II_OS_IOS_GOOGLE_SERVICE_INFO_PLIST_BASE64: ${{ secrets.II_OS_IOS_GOOGLE_SERVICE_INFO_PLIST_BASE64 }}

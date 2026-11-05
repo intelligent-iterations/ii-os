@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "runner": "ltx-video",
+  "profiles": {
+    "ltx-2.3": [
+      "checkpoints/ltx-2.3-22b-dev-fp8.safetensors",
+      "text_encoders/gemma_3_12B_it_fp4_mixed.safetensors",
+      "latent_upscale_models/ltx-2.3-spatial-upscaler-x2-1.1.safetensors",
+      "loras/ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors",
+      "loras/gemma-3-12b-it-abliterated_lora_rank64_bf16.safetensors"
+    ]
+  },
+  "files": [
+    {
+      "path": "checkpoints/ltx-2.3-22b-dev-fp8.safetensors",
+      "size_bytes": 29145431166,
+      "sha256": "28606c5b5a06ce56f896d4dfcb20f212739e07a68fbe48e53638188449d26450",
+      "source": "https://huggingface.co/Lightricks/LTX-2.3-fp8/resolve/91eda216f820e5ecb3d17dc9fe3b7cdaf56b587d/ltx-2.3-22b-dev-fp8.safetensors",
+      "license": "LTX-2 Community License Agreement",
+      "note": "Open weights, not open source: https://github.com/Lightricks/LTX-2/blob/main/LICENSE-2. Entities (with affiliates) at or above US$10,000,000 annual revenue need a paid commercial license from Lightricks. Attachment A use restrictions apply to the model and its outputs and must be passed on to anyone you host it for; they include disclosing machine-generated content, no non-consensual impersonation, no circumventing the model's safety features, and no product that competes with Lightricks' offerings without a commercial license. Export-control and sanctions terms apply."
+    },
+    {
+      "path": "text_encoders/gemma_3_12B_it_fp4_mixed.safetensors",
+      "size_bytes": 9447702218,
+      "sha256": "aaca463d11e6d8d2a4bdb0d6299214c15ef78a3f73e0ef8113d5a9d0219b3f6d",
+      "source": "https://huggingface.co/Comfy-Org/ltx-2/resolve/ccde4ba417d7900669fd56dd292a883cee11ff37/split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors",
+      "license": "Gemma Terms of Use",
+      "note": "A ComfyUI fp4 repack of google/gemma-3-12b-it. The repack repository's card names the LTX-2 Community License, but the weights derive from Gemma, so the Gemma Terms of Use and Prohibited Use Policy also apply: https://ai.google.dev/gemma/terms."
+    },
+    {
+      "path": "latent_upscale_models/ltx-2.3-spatial-upscaler-x2-1.1.safetensors",
+      "size_bytes": 995743560,
+      "sha256": "5f416311fa8172b65af67530758964708d29a317b830d689a51143b7f91913ed",
+      "source": "https://huggingface.co/Lightricks/LTX-2.3/resolve/c1521179de480464f366a98a9d9b2acc4cc097b9/ltx-2.3-spatial-upscaler-x2-1.1.safetensors",
+      "license": "LTX-2 Community License Agreement",
+      "note": "Same terms as the LTX-2.3 checkpoint: commercial license required at US$10,000,000 annual revenue, Attachment A use restrictions."
+    },
+    {
+      "path": "loras/ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors",
+      "size_bytes": 2741024390,
+      "sha256": "31e0c0195fb841bf31af78e8b60858f489e87ddcea4a5239abc80943da65e3ac",
+      "source": "https://huggingface.co/Comfy-Org/ltx-2.3/resolve/f20f3a54378001e5e6d642acc84719cc78addf4b/split_files/loras/ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors",
+      "license": "LTX-2 Community License Agreement",
+      "note": "A ComfyUI repack of the LTX-2.3 distilled 1.1 LoRA; same terms as the LTX-2.3 checkpoint: commercial license required at US$10,000,000 annual revenue, Attachment A use restrictions."
+    },
+    {
+      "path": "loras/gemma-3-12b-it-abliterated_lora_rank64_bf16.safetensors",
+      "size_bytes": 628203616,
+      "sha256": "87bcabeac9bec9f374232b5122d6511c2b2112d479e50176149e944b3712eb4a",
+      "source": "https://huggingface.co/Comfy-Org/ltx-2/resolve/ccde4ba417d7900669fd56dd292a883cee11ff37/split_files/loras/gemma-3-12b-it-abliterated_lora_rank64_bf16.safetensors",
+      "license": "unstated",
+      "optional": true,
+      "note": "Optional; not needed. No license is stated for this file. It removes the Gemma text encoder's refusal behaviour (base models google/gemma-3-12b-it and mlabonne/gemma-3-12b-it-abliterated, both under the Gemma Terms of Use) and feeds only the template's prompt-enhancer branch, which this runner never switches on. The graph names it only when the file is present."
+    }
+  ]
+}

@@ -1,0 +1,313 @@
+name: ii-os agent permission installer implementation
+run-name: ii-os permission v4 / ${{ inputs.approval_id }} / ${{ inputs.dispatch_id }} / ${{ inputs.profile_id }}@${{ inputs.profile_version }} / ${{ inputs.profile_digest }} / bootstrap@${{ github.sha }}
+
+# Reviewed installer body, called only as a commit-pinned reusable workflow
+# from ii-os-agent-permissions.yml. It consumes the fenced two-person approval,
+# validates the profile and computes the installation proof inside the trusted
+# controller (no agent and no model runs), and publishes the profile and proof
+# to dev only after the controller's cleanup is proven.
+
+on:
+  workflow_call:
+    inputs:
+      profile_id: {required: true, type: string}
+      profile_json: {required: true, type: string}
+      profile_version: {required: true, type: string}
+      profile_digest: {required: true, type: string}
+      workspace_id: {required: true, type: string}
+      approval_id: {required: true, type: string}
+      dispatch_id: {required: true, type: string}
+      dispatch_fence: {required: true, type: string}
+      coordinator_source_sha: {required: true, type: string}
+
+permissions: {}
+
+concurrency:
+  group: ii-os-permission-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  install:
+    name: Validate and install the approved permission profile
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ${{ fromJSON(vars.II_OS_AGENT_RUNS_ON) }}
+    environment: ii-os-agent-bootstrap
+    timeout-minutes: 40
+    env:
+      GITHUB_REPOSITORY_ID: ${{ github.repository_id }}
+      COORDINATOR_SOURCE_SHA: ${{ inputs.coordinator_source_sha || github.sha }}
+      II_OS_CONNECTOR_URL: ${{ vars.II_OS_CONNECTOR_URL }}
+      OIDC_AUDIENCE: ${{ vars.II_OS_CONNECTOR_URL }}/v1/codex-auth-sessions
+      II_OS_AGENT_HOST_ID: ${{ vars.II_OS_AGENT_HOST_ID }}
+      II_OS_AGENT_STATE_DIR: ${{ vars.II_OS_AGENT_STATE_DIR }}
+      II_OS_GITHUB_APP_ID: ${{ vars.II_OS_GITHUB_APP_ID }}
+      II_OS_GITHUB_APP_SLUG: ${{ vars.II_OS_GITHUB_APP_SLUG }}
+      II_OS_RUNTIME_KIND: permission-installer
+      APPROVAL_ID: ${{ inputs.approval_id }}
+      DISPATCH_ID: ${{ inputs.dispatch_id }}
+      DISPATCH_FENCE: ${{ inputs.dispatch_fence }}
+      WORKSPACE_ID: ${{ inputs.workspace_id }}
+      PROFILE_ID: ${{ inputs.profile_id }}
+      PROFILE_JSON: ${{ inputs.profile_json }}
+      PROFILE_VERSION: ${{ inputs.profile_version }}
+      PROFILE_DIGEST: ${{ inputs.profile_digest }}
+    steps:
+      - name: Require the agent kit settings
+        shell: bash
+        env:
+          APP_KEY_CONFIGURED: ${{ secrets.II_OS_GITHUB_APP_PRIVATE_KEY != '' }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in II_OS_CONNECTOR_URL II_OS_AGENT_HOST_ID II_OS_AGENT_STATE_DIR II_OS_GITHUB_APP_ID II_OS_GITHUB_APP_SLUG; do
+            [[ -n "${!name:-}" ]] || missing+=("vars.$name")
+          done
+          [[ "$APP_KEY_CONFIGURED" == true ]] || missing+=(secrets.II_OS_GITHUB_APP_PRIVATE_KEY)
+          if ((${#missing[@]})); then
+            printf '::error::Missing ii-os agent kit setting %s\n' "${missing[@]}"
+            exit 1
+          fi
+          [[ "$II_OS_CONNECTOR_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~-]+)*$ ]] || {
+            echo '::error::II_OS_CONNECTOR_URL must be an https URL with no trailing slash, query or credentials'; exit 1; }
+          [[ "$II_OS_AGENT_HOST_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] || {
+            echo '::error::II_OS_AGENT_HOST_ID must be a short host identity'; exit 1; }
+          [[ "$II_OS_AGENT_STATE_DIR" =~ ^/[A-Za-z0-9._/-]+$ && "$II_OS_AGENT_STATE_DIR" != */ ]] || {
+            echo '::error::II_OS_AGENT_STATE_DIR must be an absolute path'; exit 1; }
+          [[ "$II_OS_GITHUB_APP_ID" =~ ^[1-9][0-9]{0,15}$ ]] || {
+            echo '::error::II_OS_GITHUB_APP_ID must be the numeric GitHub App id'; exit 1; }
+          [[ "$II_OS_GITHUB_APP_SLUG" =~ ^[a-z0-9][a-z0-9-]{0,99}$ ]] || {
+            echo '::error::II_OS_GITHUB_APP_SLUG must be the GitHub App slug'; exit 1; }
+
+      - name: Check out the exact approved bootstrap source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+          clean: true
+
+      - name: Verify the exact repository and immutable bootstrap source
+        shell: bash
+        env:
+          GITHUB_READ_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_RUN_ATTEMPT" == '1' ]]
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$GITHUB_REF" == "refs/tags/ii-os-agent-v4-bootstrap-${GITHUB_SHA}" ]]
+          [[ "$COORDINATOR_SOURCE_SHA" == "$GITHUB_SHA" ]]
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          [[ -z "$(git status --porcelain)" ]]
+          api() {
+            curl --fail-with-body --silent --show-error --max-redirs 0 \
+              -H "Authorization: Bearer $GITHUB_READ_TOKEN" \
+              -H 'Accept: application/vnd.github+json' "$GITHUB_API_URL/$1"
+          }
+          [[ "$(api "repositories/$GITHUB_REPOSITORY_ID" | jq -er '.full_name')" == "$GITHUB_REPOSITORY" ]]
+          remote_dev="$(api "repos/$GITHUB_REPOSITORY/git/ref/heads/dev" | jq -er '.object.sha')"
+          [[ "$remote_dev" == "$GITHUB_SHA" ]] || {
+            echo '::error::dev changed after approval; installation remains retryable' >&2
+            exit 1
+          }
+
+      - name: Confirm the bound runtime host
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          PYTHONPATH=scripts/agent python3 -m providers.runtime_ticket preflight
+
+      - name: Authorize the fenced two-person install for this exact run
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$WORKSPACE_ID" =~ ^[A-Za-z0-9_-]{1,128}$ ]]
+          [[ "$APPROVAL_ID" =~ ^[A-Za-z0-9_-]{1,128}$ ]]
+          [[ "$DISPATCH_ID" =~ ^[A-Za-z0-9_-]{20,128}$ ]]
+          [[ "$DISPATCH_FENCE" =~ ^[1-9][0-9]*$ ]]
+          [[ "$PROFILE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
+          [[ "$PROFILE_VERSION" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
+          [[ "$PROFILE_DIGEST" =~ ^[0-9a-f]{64}$ ]]
+          audience="$(jq -rn --arg value "$OIDC_AUDIENCE" '$value | @uri')"
+          approval="$(jq -rn --arg value "$APPROVAL_ID" '$value | @uri')"
+          oidc_token="$(
+            curl --fail-with-body --silent --show-error \
+              -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${audience}" |
+              jq -er '.value'
+          )"
+          response_file="$(mktemp)"
+          trap 'rm -f -- "$response_file"' EXIT
+          status="$(
+            curl --silent --show-error --max-redirs 0 \
+              --output "$response_file" \
+              --write-out '%{http_code}' \
+              --request POST \
+              -H "Authorization: Bearer $oidc_token" \
+              -H 'Content-Type: application/json' \
+              --data-binary "$(
+                jq -cn \
+                  --arg workspace_id "$WORKSPACE_ID" \
+                  --arg dispatch_id "$DISPATCH_ID" \
+                  --argjson dispatch_fence "$DISPATCH_FENCE" \
+                  --arg profile_id "$PROFILE_ID" \
+                  --arg profile_version "$PROFILE_VERSION" \
+                  --arg profile_digest "$PROFILE_DIGEST" \
+                  --arg profile_json "$PROFILE_JSON" \
+                  '{
+                    workspace_id: $workspace_id,
+                    dispatch_id: $dispatch_id,
+                    dispatch_fence: $dispatch_fence,
+                    profile_id: $profile_id,
+                    profile_version: $profile_version,
+                    profile_digest: $profile_digest,
+                    profile_json: $profile_json
+                  }'
+              )" \
+              "$II_OS_CONNECTOR_URL/v1/agent-permission-approvals/$approval/consume"
+          )"
+          if [[ "$status" != 200 ]]; then
+            cat "$response_file" >&2
+            exit 1
+          fi
+          jq -e '.data.authorized == true' "$response_file" >/dev/null
+
+      - name: Prepare the approved permission profile in the trusted controller
+        id: runtime
+        timeout-minutes: 15
+        shell: bash
+        env:
+          GITHUB_SOURCE_READ_TOKEN: ${{ github.token }}
+          II_OS_RUNTIME_AUTHORIZED: '1'
+        run: |
+          PYTHONPATH=scripts/agent python3 -m providers.runtime_admin
+
+      - name: Verify the collected profile and proof after controller cleanup
+        if: ${{ steps.runtime.outputs.runtime_cleanup_proven == 'true' }}
+        shell: bash
+        env:
+          PROFILE_B64: ${{ steps.runtime.outputs.profile_b64 }}
+          PROOF_B64: ${{ steps.runtime.outputs.proof_b64 }}
+        run: |
+          python3 scripts/agent/agent_permission_install.py receive
+
+      - name: Mint one-run repository publication token
+        if: ${{ steps.runtime.outputs.runtime_cleanup_proven == 'true' }}
+        id: publication-token
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+        with:
+          app-id: ${{ vars.II_OS_GITHUB_APP_ID }}
+          private-key: ${{ secrets.II_OS_GITHUB_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
+      - name: Commit the exact profile and proof to dev
+        if: ${{ steps.runtime.outputs.runtime_cleanup_proven == 'true' }}
+        shell: bash
+        env:
+          PUBLISH_TOKEN: ${{ steps.publication-token.outputs.token }}
+          PUBLISH_APP_SLUG: ${{ steps.publication-token.outputs.app-slug }}
+        run: |
+          set -euo pipefail
+          [[ "$PUBLISH_APP_SLUG" == "$II_OS_GITHUB_APP_SLUG" ]]
+          [[ "$PROFILE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
+          profile_path=".ii-os/agent-permissions/${PROFILE_ID}.json"
+          proof_path=".ii-os/agent-permission-proofs/${PROFILE_ID}.json"
+          [[ -f "$profile_path" && ! -L "$profile_path" ]]
+          [[ -f "$proof_path" && ! -L "$proof_path" ]]
+          unexpected="$({
+            git status --porcelain --untracked-files=all |
+              sed -E 's/^.. //'
+          } | grep -Fvx -e "$profile_path" -e "$proof_path" || true)"
+          [[ -z "$unexpected" ]] || {
+            printf 'Unexpected installer changes:\n%s\n' "$unexpected" >&2
+            exit 1
+          }
+          remote_dev="$(
+            curl --fail-with-body --silent --show-error --max-redirs 0 \
+              -H "Authorization: Bearer $PUBLISH_TOKEN" \
+              -H 'Accept: application/vnd.github+json' \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/git/ref/heads/dev" |
+              jq -er '.object.sha'
+          )"
+          [[ "$remote_dev" == "$GITHUB_SHA" ]] || {
+            echo '::error::dev changed before profile publication; dispatch a new installation' >&2
+            exit 1
+          }
+          git switch -C dev "$GITHUB_SHA"
+          git add -- "$profile_path" "$proof_path"
+          [[ -n "$(git diff --cached --name-only)" ]]
+          [[ -z "$(
+            git diff --cached --name-only |
+              grep -Fvx -e "$profile_path" -e "$proof_path" || true
+          )" ]]
+          git -c user.name="${II_OS_GITHUB_APP_SLUG}[bot]" \
+            -c user.email="${II_OS_GITHUB_APP_SLUG}[bot]@users.noreply.github.com" \
+            -c commit.gpgsign=false \
+            commit -m "chore(ii-os): install ${PROFILE_ID} permissions"
+          authorization="$(printf 'x-access-token:%s' "$PUBLISH_TOKEN" | base64 | tr -d '\n')"
+          echo "::add-mask::$authorization"
+          git -c credential.helper= \
+            -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $authorization" \
+            push "https://github.com/$GITHUB_REPOSITORY.git" HEAD:refs/heads/dev
+          [[ -z "$(git status --porcelain)" ]]
+
+      - name: Publish through ii-os and complete the fenced receipt
+        if: ${{ steps.runtime.outputs.runtime_cleanup_proven == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$DISPATCH_FENCE" =~ ^[1-9][0-9]*$ ]]
+          audience="$(jq -rn --arg value "$OIDC_AUDIENCE" '$value | @uri')"
+          approval="$(jq -rn --arg value "$APPROVAL_ID" '$value | @uri')"
+          oidc_token="$(
+            curl --fail-with-body --silent --show-error \
+              -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${audience}" |
+              jq -er '.value'
+          )"
+          response_file="$(mktemp)"
+          trap 'rm -f -- "$response_file"' EXIT
+          status="$(
+            curl --silent --show-error --max-redirs 0 \
+              --output "$response_file" \
+              --write-out '%{http_code}' \
+              --request POST \
+              -H "Authorization: Bearer $oidc_token" \
+              -H 'Content-Type: application/json' \
+              --data-binary "$(
+                jq -cn \
+                  --arg workspace_id "$WORKSPACE_ID" \
+                  --arg dispatch_id "$DISPATCH_ID" \
+                  --argjson dispatch_fence "$DISPATCH_FENCE" \
+                  --arg profile_id "$PROFILE_ID" \
+                  --arg profile_version "$PROFILE_VERSION" \
+                  --arg profile_digest "$PROFILE_DIGEST" \
+                  --arg profile_json "$PROFILE_JSON" \
+                  '{
+                    workspace_id: $workspace_id,
+                    dispatch_id: $dispatch_id,
+                    dispatch_fence: $dispatch_fence,
+                    profile_id: $profile_id,
+                    profile_version: $profile_version,
+                    profile_digest: $profile_digest,
+                    profile_json: $profile_json
+                  }'
+              )" \
+              "$II_OS_CONNECTOR_URL/v1/agent-permission-approvals/$approval/complete"
+          )"
+          if [[ "$status" != 200 ]]; then
+            cat "$response_file" >&2
+            exit 1
+          fi
+          jq -e '.data.completed == true' "$response_file" >/dev/null
+
+      - name: Recover and independently confirm original controller cleanup
+        if: ${{ always() && steps.runtime.outputs.runtime_requested == 'true' }}
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          PYTHONPATH=scripts/agent python3 -m providers.runtime_admin recover

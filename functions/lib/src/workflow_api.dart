@@ -50,6 +50,7 @@ final class WorkflowApi {
     required this.githubForWorkspace,
     required this.githubOidc,
     required this.agentRepositories,
+    required this.agentEngines,
   });
 
   final WorkspaceStore store;
@@ -61,6 +62,7 @@ final class WorkflowApi {
   final GitHubClientProvider githubForWorkspace;
   final GitHubActionsOidcVerifier githubOidc;
   final AgentRepositoryTopology agentRepositories;
+  final AgentEngineCatalog agentEngines;
 
   bool isWorkflowRoute(List<String> path) =>
       path.length >= 3 &&

@@ -4,6 +4,8 @@ import 'package:ii_os_functions/src/agent_permission_profile.dart';
 import 'package:ii_os_functions/src/api_error.dart';
 import 'package:test/test.dart';
 
+import 'support/local_agent_engine_fixture.dart';
+
 void main() {
   Map<String, Object?> runtimeProfile() => _profile()
     ..['schema_version'] = 4
@@ -107,6 +109,71 @@ void main() {
       expect(profile.repository.mode, mode);
       expect(profile.toJson()['repository_actions'], {'mode': mode});
     }
+  });
+
+  test('accepts a schema v3 local Qwen engine without Codex credentials', () {
+    final engines = exampleLocalEngines();
+    final profile = AgentPermissionProfile.parse(
+      exampleLocalQwenProfile(_profile()),
+      engines: engines,
+    );
+
+    expect(profile.schemaVersion, 3);
+    expect(profile.engine, 'qwen38-local');
+    expect(profile.fleet.capabilities, contains('example-model-cache'));
+    expect(profile.fleet.capabilities, contains('example-sandbox'));
+    expect(profile.fleet.capabilities, contains('nvidia-gpu'));
+    expect(profile.fleet.resources['vram_mb'], 16384);
+    expect(profile.fleet.capabilities, isNot(contains('codex-oauth')));
+    expect(
+      profile.secretInjection.bindings.map((binding) => binding.githubSecret),
+      isNot(contains('CODEX_AUTH_JSON')),
+    );
+    expect(profile.toJson()['engine'], 'qwen38-local');
+    expect(
+      () => requireExecutableAgentProfile(profile, engines: engines),
+      returnsNormally,
+    );
+  });
+
+  test('rejects a local Qwen profile that retains Codex authority', () {
+    final json = exampleLocalQwenProfile(_profile());
+    final fleet = json['fleet']! as Map<String, Object?>;
+    fleet['capabilities'] = [
+      ...(fleet['capabilities']! as List<Object?>),
+      'codex-oauth',
+    ];
+
+    expect(
+      () => AgentPermissionProfile.parse(json, engines: exampleLocalEngines()),
+      throwsA(isA<ApiError>()),
+    );
+  });
+
+  test('rejects a local Qwen profile without the exact VRAM reservation', () {
+    final json = exampleLocalQwenProfile(_profile());
+    final resources =
+        (json['fleet']! as Map<String, Object?>)['resources']!
+            as Map<String, Object?>;
+    resources.remove('vram_mb');
+
+    expect(
+      () => AgentPermissionProfile.parse(json, engines: exampleLocalEngines()),
+      throwsA(isA<ApiError>()),
+    );
+  });
+
+  test('rejects a local Qwen profile the deployment has not configured', () {
+    expect(
+      () => AgentPermissionProfile.parse(exampleLocalQwenProfile(_profile())),
+      throwsA(
+        isA<ApiError>().having(
+          (error) => error.code,
+          'code',
+          'agent_engine_not_configured',
+        ),
+      ),
+    );
   });
 
   test('requires an explicit supported engine in schema v3', () {

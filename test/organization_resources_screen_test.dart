@@ -5,6 +5,8 @@ import 'package:ii_os/screens/organization_resources_screen.dart';
 import 'package:ii_os/services/api_client.dart';
 import 'package:ii_os/state/app_controller.dart';
 
+import 'resource_view_model_fixtures.dart';
+
 void main() {
   testWidgets('organization admin sees each resource pool and add action', (
     tester,
@@ -26,10 +28,191 @@ void main() {
     expect(find.text('Runner pools'), findsOneWidget);
     expect(find.text('Connect GCP project'), findsOneWidget);
     expect(find.text('Add GitHub App'), findsNothing);
-    expect(find.text('Sync Fleet capacity'), findsOneWidget);
-    expect(find.text('Add runner pool'), findsNothing);
+    // A deployment without a runner control plane can still make a workspace
+    // dispatchable: the person describes the runners they already run.
+    expect(find.text('Add your runners'), findsOneWidget);
+    expect(_button(tester, 'Add your runners').onPressed, isNotNull);
+    expect(find.text('Sync reported capacity'), findsOneWidget);
+    expect(find.text('Sync Fleet capacity'), findsNothing);
+    expect(find.textContaining('Fleet'), findsNothing);
     expect(find.textContaining('GitHub-hosted runners'), findsOneWidget);
   });
+
+  testWidgets('a role that cannot manage runners sees why, beside the action', (
+    tester,
+  ) async {
+    final controller = _controller(
+      _sessionJson(capabilities: const ['org.integrations.manage']),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: OrganizationResourcesScreen(controller: controller)),
+    );
+
+    expect(find.text('Add your runners'), findsOneWidget);
+    expect(_button(tester, 'Add your runners').onPressed, isNull);
+    expect(_button(tester, 'Sync reported capacity').onPressed, isNull);
+    expect(
+      find.textContaining('Only an Organization Admin can add or change'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('adding your runners saves a customer pool', (tester) async {
+    final controller = _controller(_sessionJson());
+    final repository = FakeOrganizationResourceRepository();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: OrganizationResourcesScreen(
+          controller: controller,
+          repository: repository,
+        ),
+      ),
+    );
+    await tester.tap(find.text('Add your runners'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Workspaces can use these runners'), findsNothing);
+    await tester.enterText(_field('Name'), 'GPU runners');
+    await tester.enterText(_field('Runner group'), 'gpu-runners');
+    await tester.enterText(
+      _field('Capabilities'),
+      'runtime-docker, gpu.nvidia',
+    );
+    await tester.enterText(_field('CPU cores'), '16');
+    await tester.enterText(_field('Memory (MiB)'), '65536');
+    await tester.enterText(_field('Jobs at once'), '2');
+    await tester.tap(find.text('Add runners'));
+    await tester.pumpAndSettle();
+
+    final saved = repository.runner;
+    expect(saved?.id, 'runner_gpu_runners');
+    expect(saved?.provider, 'customer');
+    expect(saved?.providerPoolId, 'gpu-runners');
+    expect(saved?.capabilities, {'runtime-docker', 'gpu.nvidia'});
+    expect(saved?.maxCpu, 16);
+    expect(saved?.maxRamMiB, 65536);
+    expect(saved?.maxConcurrent, 2);
+    expect(find.text('Runner group'), findsNothing);
+  });
+
+  testWidgets('sync without a capacity report points to adding your runners', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final controller = _controller(_sessionJson());
+    final repository = FakeOrganizationResourceRepository()
+      ..failure = const RunnerPoolFailure(RunnerPoolFailureKind.notReported);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: OrganizationResourcesScreen(
+          controller: controller,
+          repository: repository,
+        ),
+      ),
+    );
+    await tester.tap(find.text('Sync reported capacity'));
+    await tester.pumpAndSettle();
+
+    final message = find.textContaining('No capacity report has arrived');
+    expect(message, findsOneWidget);
+    // Rendered in the runner card, next to the action that failed.
+    expect(
+      find.ancestor(of: message, matching: find.byType(Card)),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Fleet'), findsNothing);
+  });
+
+  testWidgets('the runner form refuses a capability it cannot save', (
+    tester,
+  ) async {
+    final controller = _controller(_sessionJson());
+    final repository = FakeOrganizationResourceRepository();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: OrganizationResourcesScreen(
+          controller: controller,
+          repository: repository,
+        ),
+      ),
+    );
+    await tester.tap(find.text('Add your runners'));
+    await tester.pumpAndSettle();
+    await tester.enterText(_field('Name'), 'GPU runners');
+    await tester.enterText(_field('Runner group'), 'gpu runners');
+    await tester.enterText(_field('Capabilities'), 'gpu nvidia');
+    await tester.enterText(_field('CPU cores'), '0');
+    await tester.enterText(_field('Memory (MiB)'), '65536');
+    await tester.enterText(_field('Jobs at once'), '2');
+    await tester.tap(find.text('Add runners'));
+    await tester.pumpAndSettle();
+
+    expect(repository.runner, isNull);
+    expect(find.textContaining('Use letters, digits'), findsOneWidget);
+    expect(find.textContaining('Separate capabilities'), findsWidgets);
+    expect(find.text('Enter a positive number.'), findsOneWidget);
+  });
+
+  for (final (label, size) in [
+    ('desktop', const Size(1440, 1200)),
+    ('phone', const Size(390, 844)),
+  ]) {
+    testWidgets(
+      'your runners can be edited; reported runners cannot ($label)',
+      (tester) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final controller = _controller(_sessionJson(withRunners: true));
+        final repository = FakeOrganizationResourceRepository();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: OrganizationResourcesScreen(
+              controller: controller,
+              repository: repository,
+            ),
+          ),
+        );
+
+        expect(find.byTooltip('Edit Studio runners'), findsOneWidget);
+        expect(find.byTooltip('Edit Reported GPU pool'), findsNothing);
+        expect(find.textContaining('Your runners · studio'), findsOneWidget);
+        expect(
+          find.textContaining('From your capacity report'),
+          findsOneWidget,
+        );
+
+        await tester.ensureVisible(find.byTooltip('Edit Studio runners'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('Edit Studio runners'));
+        await tester.pumpAndSettle();
+        expect(find.text('Edit your runners'), findsOneWidget);
+        expect(
+          tester.widget<TextFormField>(_field('Name')).controller?.text,
+          'Studio runners',
+        );
+        await tester.ensureVisible(
+          find.text('Workspaces can use these runners'),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Workspaces can use these runners'));
+        await tester.pump();
+        await tester.tap(find.text('Save changes'));
+        await tester.pumpAndSettle();
+
+        expect(repository.runner?.id, 'runner_studio');
+        expect(repository.runner?.active, isFalse);
+        expect(repository.runner?.capabilities, {'runtime-docker'});
+      },
+    );
+  }
 
   testWidgets('empty catalog offers the existing workspace setup', (
     tester,
@@ -115,7 +298,34 @@ void main() {
   });
 }
 
-Map<String, Object?> _sessionJson({bool withLegacy = false}) => {
+AppController _controller(Map<String, Object?> session) {
+  final controller = AppController(
+    api: ApiClient(baseUrl: '', reportFailures: false),
+  );
+  addTearDown(controller.dispose);
+  controller.session = SessionModel.fromJson(session);
+  controller.selectedAccess = controller.session!.workspaces.single;
+  return controller;
+}
+
+ButtonStyleButton _button(WidgetTester tester, String label) =>
+    tester.widget<ButtonStyleButton>(
+      find.ancestor(
+        of: find.text(label),
+        matching: find.bySubtype<ButtonStyleButton>(),
+      ),
+    );
+
+Finder _field(String label) => find.widgetWithText(TextFormField, label);
+
+Map<String, Object?> _sessionJson({
+  bool withLegacy = false,
+  bool withRunners = false,
+  List<String> capabilities = const [
+    'org.integrations.manage',
+    'org.runners.manage',
+  ],
+}) => {
   'user': {
     'uid': 'admin-1',
     'email': 'admin@example.com',
@@ -130,15 +340,37 @@ Map<String, Object?> _sessionJson({bool withLegacy = false}) => {
         'resourceCatalogVersion': 1,
         'gcpResources': <Object?>[],
         'githubResources': <Object?>[],
-        'runnerPools': <Object?>[],
+        'runnerPools': [
+          if (withRunners) ...[
+            {
+              'id': 'runner_fleet_0123456789ab',
+              'name': 'Reported GPU pool',
+              'provider': 'fleet',
+              'providerPoolId': 'gpu-pool',
+              'capabilities': ['gpu.nvidia'],
+              'maxCpu': 16,
+              'maxRamMiB': 65536,
+              'maxConcurrent': 2,
+              'active': true,
+            },
+            {
+              'id': 'runner_studio',
+              'name': 'Studio runners',
+              'provider': 'customer',
+              'providerPoolId': 'studio',
+              'capabilities': ['runtime-docker'],
+              'maxCpu': 8,
+              'maxRamMiB': 16384,
+              'maxConcurrent': 1,
+              'active': true,
+            },
+          ],
+        ],
       },
       'membership': {
         'role': 'admin',
         'roleLabel': 'Organization Admin',
-        'effectiveCapabilities': [
-          'org.integrations.manage',
-          'org.runners.manage',
-        ],
+        'effectiveCapabilities': capabilities,
       },
     },
   ],

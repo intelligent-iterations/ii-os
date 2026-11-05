@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'data_plane_connection.dart';
 import 'models.dart';
 
+/// Provider of runners an organization runs itself and describes by hand.
+const customerRunnerProvider = 'customer';
+
 final class OrganizationResourceCatalogModel {
   const OrganizationResourceCatalogModel({
     this.gcp = const [],
@@ -134,6 +137,10 @@ final class OrganizationRunnerPoolModel {
   final int maxConcurrent;
   final bool active;
   final String providerPoolId;
+
+  /// Runners the organization runs itself and describes by hand. Pools a
+  /// capacity report produced change only when that report is synced again.
+  bool get keptByHand => provider == customerRunnerProvider;
 }
 
 /// Organization Admin input for one validated GCP project envelope.
@@ -187,6 +194,7 @@ final class OrganizationRunnerPoolDraft {
     required this.maxRamMiB,
     required this.maxConcurrent,
     required this.providerPoolId,
+    this.active = true,
   });
 
   final String id;
@@ -197,6 +205,7 @@ final class OrganizationRunnerPoolDraft {
   final int maxRamMiB;
   final int maxConcurrent;
   final String providerPoolId;
+  final bool active;
 
   JsonMap toJson() => {
     'name': name,
@@ -206,6 +215,7 @@ final class OrganizationRunnerPoolDraft {
     'maxRamMiB': maxRamMiB,
     'maxConcurrent': maxConcurrent,
     'providerPoolId': providerPoolId,
+    'active': active,
   };
 }
 

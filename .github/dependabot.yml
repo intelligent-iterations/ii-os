@@ -25,6 +25,13 @@ updates:
     open-pull-requests-limit: 5
     cooldown:
       default-days: 7
+  - package-ecosystem: npm
+    directory: /agent_execution
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
   - package-ecosystem: bundler
     directory: /android
     schedule:

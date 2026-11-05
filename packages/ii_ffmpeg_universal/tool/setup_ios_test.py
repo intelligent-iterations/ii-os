@@ -51,6 +51,9 @@ class IosLocalEngineSetupTest(unittest.TestCase):
         )
         self.install = self.root / "install"
         self.install.mkdir()
+        scripts = self.root / "scripts"
+        scripts.mkdir()
+        (scripts / "setup_ios.sh").write_text(SCRIPT.read_text())
 
     def tearDown(self):
         self.owned.cleanup()
@@ -84,6 +87,27 @@ class IosLocalEngineSetupTest(unittest.TestCase):
             },
             {f"{name}.xcframework" for name in FRAMEWORKS},
         )
+
+    def test_release_compile_phase_revalidates_cached_framework_bytes(self):
+        first = self._run()
+        self.assertEqual(first.returncode, 0, first.stderr)
+        binary = next((self.install / "Frameworks/ffmpegkit.xcframework").rglob("ffmpegkit"))
+        spec = SCRIPT.parents[1] / "ios/ffmpeg_kit_flutter_new_full.podspec"
+        text = spec.read_text()
+        phase = text.split(":script => <<-SCRIPT", 1)[1].split("    SCRIPT", 1)[0]
+        environment = {
+            **os.environ, "CONFIGURATION": "Release",
+            "PODS_TARGET_SRCROOT": str(self.install),
+            "II_FFMPEG_IOS_ARCHIVE_DIR": str(self.archives),
+            "II_FFMPEG_IOS_ATTESTATION": str(self.attestation),
+        }
+        result = subprocess.run(["bash", "-c", phase], cwd=self.install,
+                                env=environment, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        binary.write_bytes(b"tampered cached engine")
+        result = subprocess.run(["bash", "-c", phase], cwd=self.install,
+                                env=environment, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_rejects_archive_changed_after_attestation(self):
         target = self.archives / "libavutil.xcframework.zip"

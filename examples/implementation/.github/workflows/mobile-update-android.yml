@@ -1,0 +1,44 @@
+# Workflow kit template. GitHub never runs workflows below examples/; move the
+# kit to the root of your ii-os fork and fill in the settings first. See
+# docs/mobile-release.md.
+#
+# The catalog entry `mobile-update-android` dispatches this wrapper when a
+# signed-in operator presses Update in the Android app. It takes no
+# client-controlled target: it always publishes the reviewed branch head to
+# Google Play internal testing.
+name: Android update
+run-name: Android update / ${{ inputs.ii_request_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      ii_request_id:
+        description: ii-os workflow request identity
+        required: false
+        type: string
+      ii_payload_mode:
+        description: ii-os payload delivery mode (unused; this workflow takes no payload)
+        required: false
+        type: string
+
+permissions: {}
+
+# One run per ii-os request; the release job itself is serialised so two
+# updates never publish at once.
+concurrency:
+  group: mobile-update-android-${{ inputs.ii_request_id }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publish Android update
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/release-android.yml
+    with:
+      publish: true
+    secrets:
+      II_OS_ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.II_OS_ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+      II_OS_ANDROID_KEY_PROPERTIES: ${{ secrets.II_OS_ANDROID_KEY_PROPERTIES }}
+      II_OS_ANDROID_GOOGLE_SERVICES_JSON: ${{ secrets.II_OS_ANDROID_GOOGLE_SERVICES_JSON }}

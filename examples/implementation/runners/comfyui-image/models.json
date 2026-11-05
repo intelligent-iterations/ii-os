@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "runner": "comfyui-image",
+  "profiles": {
+    "z-image-turbo": [
+      "diffusion_models/z_image_turbo_bf16.safetensors",
+      "text_encoders/qwen_3_4b.safetensors",
+      "vae/ae.safetensors"
+    ],
+    "flux2-klein": [
+      "diffusion_models/flux-2-klein-4b-fp8.safetensors",
+      "text_encoders/qwen_3_4b.safetensors",
+      "vae/flux2-vae.safetensors"
+    ],
+    "qwen-image-2512": [
+      "diffusion_models/qwen_image_2512_fp8_e4m3fn.safetensors",
+      "text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors",
+      "vae/qwen_image_vae.safetensors"
+    ],
+    "z-image-turbo-controlnet": [
+      "diffusion_models/z_image_turbo_bf16.safetensors",
+      "text_encoders/qwen_3_4b.safetensors",
+      "vae/ae.safetensors",
+      "model_patches/Z-Image-Turbo-Fun-Controlnet-Union-2.1.safetensors"
+    ],
+    "qwen-image-edit-2511": [
+      "diffusion_models/qwen_image_edit_2511_fp8mixed.safetensors",
+      "loras/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
+      "text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors",
+      "vae/qwen_image_vae.safetensors"
+    ],
+    "qwen-image-inpaint": [
+      "diffusion_models/qwen_image_fp8_e4m3fn.safetensors",
+      "controlnet/Qwen-Image-InstantX-ControlNet-Inpainting.safetensors",
+      "loras/Qwen-Image-Lightning-4steps-V1.0.safetensors",
+      "text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors",
+      "vae/qwen_image_vae.safetensors"
+    ],
+    "flux2-klein-base-edit": [
+      "diffusion_models/flux-2-klein-base-4b-fp8.safetensors",
+      "text_encoders/qwen_3_4b.safetensors",
+      "vae/full_encoder_small_decoder.safetensors"
+    ]
+  },
+  "files": [
+    {
+      "path": "diffusion_models/z_image_turbo_bf16.safetensors",
+      "size_bytes": 12309866400,
+      "sha256": "2407613050b809ffdff18a4ac99af83ea6b95443ecebdf80e064a79c825574a6",
+      "source": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/6fc90a3b1b653e935a0d175e260736de25b84df5/split_files/diffusion_models/z_image_turbo_bf16.safetensors",
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "text_encoders/qwen_3_4b.safetensors",
+      "size_bytes": 8044982048,
+      "sha256": "6c671498573ac2f7a5501502ccce8d2b08ea6ca2f661c458e708f36b36edfc5a",
+      "source": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/6fc90a3b1b653e935a0d175e260736de25b84df5/split_files/text_encoders/qwen_3_4b.safetensors",
+      "license": "Apache-2.0",
+      "note": "Shared by Z-Image Turbo and FLUX.2 Klein; the same file is published in the Comfy-Org Flux-2-Klein-4B repository."
+    },
+    {
+      "path": "vae/ae.safetensors",
+      "size_bytes": 335304388,
+      "sha256": "afc8e28272cd15db3919bacdb6918ce9c1ed22e96cb12c4d5ed0fba823529e38",
+      "source": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/6fc90a3b1b653e935a0d175e260736de25b84df5/split_files/vae/ae.safetensors",
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "diffusion_models/flux-2-klein-4b-fp8.safetensors",
+      "size_bytes": 4070624520,
+      "sha256": "97ed34fe0567e436200f2faee3939b88f2b5d99f8af2a4dc16532c4245c0ccb6",
+      "source": "https://huggingface.co/black-forest-labs/FLUX.2-klein-4b-fp8/resolve/5b4408e59397a4a37ccb46afe426d8ed86379441/flux-2-klein-4b-fp8.safetensors",
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "vae/flux2-vae.safetensors",
+      "size_bytes": 336211292,
+      "sha256": "868fe7b343cc8f3a19dbcfcafbc3d5f888802be3f89bd81b65b3621a066ce8f3",
+      "source": "https://huggingface.co/Comfy-Org/Flux-2-Klein-4B/resolve/5b3abca5c0dc1ecd4eaf3340868d09063fc1c965/split_files/vae/flux2-vae.safetensors",
+      "license": "Apache-2.0",
+      "note": "Use this copy from the Apache-2.0 FLUX.2 Klein repository. A flux2-vae.safetensors is also published in the Comfy-Org/flux2-dev repository, whose repository license is the non-commercial FLUX.2 [dev] license; that copy differs in size, so this check would reject it unless you edit this entry."
+    },
+    {
+      "path": "diffusion_models/qwen_image_2512_fp8_e4m3fn.safetensors",
+      "size_bytes": 20430679144,
+      "sha256": "5dc80554d5d83390046a2f4a94ece06afb7700bf7b0aaf8bde9769793875876b",
+      "source": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/1f12b17be14c89b026c51a91d67c32f84bb047bc/split_files/diffusion_models/qwen_image_2512_fp8_e4m3fn.safetensors",
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors",
+      "size_bytes": 9384670680,
+      "sha256": "cb5636d852a0ea6a9075ab1bef496c0db7aef13c02350571e388aea959c5c0b4",
+      "source": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/1f12b17be14c89b026c51a91d67c32f84bb047bc/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors",
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "vae/qwen_image_vae.safetensors",
+      "size_bytes": 253806246,
+      "sha256": "a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f",
+      "source": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/1f12b17be14c89b026c51a91d67c32f84bb047bc/split_files/vae/qwen_image_vae.safetensors",
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "model_patches/Z-Image-Turbo-Fun-Controlnet-Union-2.1.safetensors",
+      "size_bytes": 6712485600,
+      "sha256": "7f611e6d52b133f64b84bef2549fcb84589a766b8255954f96ea34684f52b633",
+      "source": "https://huggingface.co/alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union-2.1/resolve/5155fc56d17821007d6f62ac192c09e0f0e72016/Z-Image-Turbo-Fun-Controlnet-Union-2.1.safetensors",
+      "license": "Apache-2.0",
+      "note": "Loaded with ComfyUI's ModelPatchLoader, so it lives in model_patches/, not controlnet/."
+    },
+    {
+      "path": "diffusion_models/qwen_image_edit_2511_fp8mixed.safetensors",
+      "size_bytes": 20533762817,
+      "sha256": "c9fdc158e46d3b61ef75f21ae866ca2fe808bf4a53643120d1c1e87c19280a4e",
+      "source": "https://huggingface.co/Comfy-Org/Qwen-Image-Edit_ComfyUI/resolve/f68ace85e60b4a02a323e394253731947657b7d2/split_files/diffusion_models/qwen_image_edit_2511_fp8mixed.safetensors",
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "loras/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
+      "size_bytes": 849608296,
+      "sha256": "22226e8d05d354bb356627d428809f5afd7819399b077238a2b70a82883a904f",
+      "source": "https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning/resolve/107d238d68b8387e32843d0b4a2e24ceb0d3ad86/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "diffusion_models/qwen_image_fp8_e4m3fn.safetensors",
+      "size_bytes": 20430635136,
+      "sha256": "98763a127701eb6fb59096f7742cb3aa7d64ed510b9f4e882d8351f8176e3ce3",
+      "source": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/1f12b17be14c89b026c51a91d67c32f84bb047bc/split_files/diffusion_models/qwen_image_fp8_e4m3fn.safetensors",
+      "license": "Apache-2.0",
+      "note": "The original Qwen-Image release, which the InstantX inpainting ControlNet was trained against; not the 2512 model the text-to-image profile uses."
+    },
+    {
+      "path": "controlnet/Qwen-Image-InstantX-ControlNet-Inpainting.safetensors",
+      "size_bytes": 4234599432,
+      "sha256": "49c01aafe6545c1f6e7627a724c8fb13357fe74efee235622158f0a8f30e5458",
+      "source": "https://huggingface.co/Comfy-Org/Qwen-Image-InstantX-ControlNets/resolve/90cf72c3b0e4b11f9a0037727459dbdd03ae029b/split_files/controlnet/Qwen-Image-InstantX-ControlNet-Inpainting.safetensors",
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "loras/Qwen-Image-Lightning-4steps-V1.0.safetensors",
+      "size_bytes": 1698951104,
+      "sha256": "9526e90d71c4290392feeccf3c2172cb77ab3a489f1faeb956637f97acb4c8b1",
+      "source": "https://huggingface.co/lightx2v/Qwen-Image-Lightning/resolve/d468c534b360e0754c6bf9e38ed49e1e09cd2e2a/Qwen-Image-Lightning-4steps-V1.0.safetensors",
+      "license": "Apache-2.0"
+    },
+    {
+      "path": "diffusion_models/flux-2-klein-base-4b-fp8.safetensors",
+      "size_bytes": 4089498488,
+      "sha256": "44bab3a86fe98b85d21dd2a4729ebdc3ae51fb8a39f76e457e18c724219e6840",
+      "source": "https://huggingface.co/black-forest-labs/FLUX.2-klein-base-4b-fp8/resolve/103db268c10d4d3921101b46057671f9ac460da6/flux-2-klein-base-4b-fp8.safetensors",
+      "license": "Apache-2.0",
+      "note": "The undistilled base model the edit template samples at 20 steps; not the distilled flux-2-klein-4b-fp8 that text-to-image uses."
+    },
+    {
+      "path": "vae/full_encoder_small_decoder.safetensors",
+      "size_bytes": 249519092,
+      "sha256": "ea4273f02d1fafbf8e1d1c2cf6018ed8748652eb0bf34f2dd91171f16f15ab62",
+      "source": "https://huggingface.co/black-forest-labs/FLUX.2-small-decoder/resolve/a3efc24f613ef42d9428af62fdbd6f5fd8856c4a/full_encoder_small_decoder.safetensors",
+      "license": "Apache-2.0"
+    }
+  ]
+}

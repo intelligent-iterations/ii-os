@@ -311,7 +311,49 @@ void main() {
       await viewModel.submit();
 
       expect(viewModel.phase, ClassificationRunPhase.failed);
-      expect(viewModel.failureMessage, contains('not installed'));
+      expect(
+        viewModel.failureMessage,
+        'No runner has the classification model installed yet.',
+      );
+    });
+
+    test('a run whose runner lacks the model says so', () async {
+      final viewModel = _viewModel(
+        templates: _Templates([
+          _template(runtime: WorkflowRuntimeStatus.notReported),
+        ]),
+        jobs: _Jobs(
+          [],
+          submitted: {
+            'jobId': 'job-1',
+            'status': 'failed',
+            'workflowResult': {'errorCode': 'classification_model_missing'},
+          },
+        ),
+      );
+      await viewModel.load();
+      viewModel.setStateText('text');
+
+      await viewModel.submit();
+
+      expect(viewModel.phase, ClassificationRunPhase.failed);
+      expect(viewModel.failureMessage, contains('not installed on your GPU'));
+    });
+
+    test('a deployment without capacity reports can launch and does not '
+        'claim the runtime is installed', () async {
+      final viewModel = _viewModel(
+        templates: _Templates([
+          _template(runtime: WorkflowRuntimeStatus.notReported),
+        ]),
+        jobs: _Jobs([]),
+      );
+      await viewModel.load();
+      viewModel.setStateText('I was charged twice.');
+
+      expect(viewModel.availability, ClassificationAvailability.checkedOnRun);
+      expect(viewModel.showsUnavailableNotice, isFalse);
+      expect(viewModel.canSubmit, isTrue);
     });
 
     test(
@@ -417,6 +459,12 @@ void main() {
         expect(
           await of(_Templates(const [])),
           ClassificationAvailability.notConfigured,
+        );
+        expect(
+          await of(
+            _Templates([_template(runtime: WorkflowRuntimeStatus.notReported)]),
+          ),
+          ClassificationAvailability.checkedOnRun,
         );
         expect(
           await of(_Templates(const [], fails: true)),

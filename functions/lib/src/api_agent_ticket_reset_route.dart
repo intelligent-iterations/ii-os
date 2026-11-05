@@ -61,7 +61,7 @@ extension on IiOsApi {
         'clearsLabels': true,
       },
       execute: () async {
-        final activations = AgentActivationStore(store);
+        final activations = AgentActivationStore(store, engines: agentEngines);
         await activations.beginReset(
           workspaceId: workspaceId,
           projectItemId: target.itemId,
