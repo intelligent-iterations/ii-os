@@ -36,7 +36,7 @@ dependencies:
   lucide_icons_flutter: ^3.1.14+2
   pinenacl: ^0.6.0
   shared_preferences: ^2.5.5
-  url_launcher: ^6.3.2
+  url_launcher: ^6.3.3
   uuid: ^4.5.3
   video_player: ^2.11.1
   cached_network_image: ^3.4.1
