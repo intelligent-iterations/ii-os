@@ -119,6 +119,8 @@ class _ModelFacts extends StatelessWidget {
             ClassificationAvailability.notConfigured => 'Not set up',
             ClassificationAvailability.checking => 'Checking runtime',
             ClassificationAvailability.unconfirmed => 'Runtime unconfirmed',
+            ClassificationAvailability.checkedOnRun =>
+              'Runtime checked at launch',
           },
           icon: availability == ClassificationAvailability.available
               ? LucideIcons.circleCheck

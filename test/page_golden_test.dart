@@ -63,8 +63,9 @@ final _pages = <String, PageBuilder>{
   'workspace-resources': (c) => WorkspaceResourceSelectionScreen(
     controller: seedResourcePageController(c),
   ),
-  'organization-resources': (c) =>
-      OrganizationResourcesScreen(controller: seedResourcePageController(c)),
+  'organization-resources': (c) => OrganizationResourcesScreen(
+    controller: seedResourcePageController(c, withCustomerRunners: true),
+  ),
   'tickets': (c) => SoftwareWorkshopScreen(
     controller: c,
     onSelectionChanged: (_, _, _, _) {},

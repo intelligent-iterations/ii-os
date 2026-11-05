@@ -1,0 +1,36 @@
+{
+  "allowed_actions": [
+    "Read repository code, pull request changes, and verification results",
+    "Approve the exact reviewed pull request",
+    "Comment review evidence on the existing source ticket"
+  ],
+  "denied_actions": [
+    "Edit or publish repository files",
+    "Create or merge pull requests",
+    "Create new GitHub issues or Project items",
+    "Set Done or another human-only Project status"
+  ],
+  "description": "Reviews an existing pull request and may approve it without publishing code or merging it.",
+  "display_name": "Pull request reviewer",
+  "engine": "codex",
+  "id": "pull-request-reviewer",
+  "repository_actions": {
+    "mode": "review_pull_requests"
+  },
+  "runtime": {
+    "configuration": {
+      "path": ".ii-os/runtimes/pull-request-reviewer.json",
+      "sha256": "4b8fa4f0ece67971025a1a58ee9af4bf1fc1e80a439e1f96ff5cab8fd63fcc6a"
+    },
+    "execution_binding": {
+      "path": ".ii-os/runtimes/execution-binding.json",
+      "sha256": "5c4681be3763baf05b7aca19cf4395623fd0dd38b6cdf7b504f257234e257000"
+    }
+  },
+  "schema_version": 4,
+  "version": "2026-11-04.1",
+  "workflow": {
+    "file": "ii-os-agent-task.yml",
+    "ref": "dev"
+  }
+}

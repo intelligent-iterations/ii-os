@@ -1,0 +1,189 @@
+# Workflow kit template. GitHub never runs workflows below examples/; move the
+# kit to the root of your ii-os fork and fill in the settings first. See
+# docs/mobile-release.md.
+#
+# Dispatching this workflow directly builds a validation App Bundle with a
+# throwaway upload key and never contacts Google Play. Only
+# mobile-update-android.yml, which ii-os dispatches from its catalog, calls it
+# with publish=true; the upload step refuses every other workflow.
+name: Android release
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      publish:
+        description: Sign with the release key and upload to Google Play internal testing
+        required: true
+        type: boolean
+    secrets:
+      II_OS_ANDROID_UPLOAD_KEYSTORE_BASE64:
+        required: false
+      II_OS_ANDROID_KEY_PROPERTIES:
+        required: false
+      II_OS_ANDROID_GOOGLE_SERVICES_JSON:
+        required: false
+
+permissions: {}
+
+env:
+  II_OS_WORKFLOW_REPOSITORY: ${{ vars.II_OS_WORKFLOW_REPOSITORY }}
+  II_OS_WORKFLOW_BRANCH: ${{ vars.II_OS_WORKFLOW_BRANCH }}
+  II_OS_ANDROID_APPLICATION_ID: ${{ vars.II_OS_ANDROID_APPLICATION_ID }}
+  ORG_GRADLE_PROJECT_II_OS_ANDROID_APPLICATION_ID: ${{ vars.II_OS_ANDROID_APPLICATION_ID }}
+  II_OS_ANDROID_BUILD_NAME: ${{ vars.II_OS_MOBILE_BUILD_NAME }}
+  II_OS_FFMPEG_ENGINE_STORE: ${{ vars.II_OS_FFMPEG_ENGINE_STORE }}
+  II_OS_RELEASE_EVIDENCE_DIR: ${{ vars.II_OS_RELEASE_EVIDENCE_DIR }}
+  # Must match tool/build_android_release.sh and the public quality workflow.
+  FLUTTER_REVISION: 924134a44c189315be2148659913dda1671cbe99
+
+jobs:
+  validate:
+    name: Validate Android release build
+    if: ${{ !inputs.publish }}
+    runs-on: ${{ fromJSON(vars.II_OS_CPU_RUNS_ON) }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      II_OS_ANDROID_VALIDATION_ONLY: "true"
+      II_OS_WEB_ORIGIN: https://validation.invalid
+    steps:
+      - name: Check settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in II_OS_WORKFLOW_REPOSITORY II_OS_WORKFLOW_BRANCH \
+              II_OS_ANDROID_APPLICATION_ID II_OS_ANDROID_BUILD_NAME \
+              II_OS_FFMPEG_ENGINE_STORE II_OS_RELEASE_EVIDENCE_DIR; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Setting $name is not configured; see docs/mobile-release.md"
+              exit 1
+            fi
+          done
+          test "$GITHUB_REPOSITORY" = "$II_OS_WORKFLOW_REPOSITORY"
+          test "$GITHUB_REF" = "refs/heads/$II_OS_WORKFLOW_BRANCH"
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Verify the reviewed source and locate the pinned engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          source tool/workflow_source_identity.sh
+          source tool/ffmpeg_engine_pins.sh
+          ii_os_verify_source_checkout "$GITHUB_WORKSPACE"
+          revision="$(ii_os_engine_pin "$GITHUB_WORKSPACE" engine_source_revision)"
+          printf 'II_FFMPEG_ANDROID_ENGINE_ROOT=%s\n' \
+            "$II_OS_FFMPEG_ENGINE_STORE/$revision/android" >>"$GITHUB_ENV"
+      - name: Install pinned Flutter
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter_root="$RUNNER_TEMP/flutter"
+          git init --quiet "$flutter_root"
+          git -C "$flutter_root" remote add origin https://github.com/flutter/flutter.git
+          git -C "$flutter_root" fetch --quiet --depth 1 origin "$FLUTTER_REVISION"
+          git -C "$flutter_root" checkout --quiet --detach "$FLUTTER_REVISION"
+          printf 'FLUTTER_HOME=%s\n' "$flutter_root" >>"$GITHUB_ENV"
+          printf '%s\n' "$flutter_root/bin" >>"$GITHUB_PATH"
+      - name: Derive monotonic Android version code
+        run: python3 tool/android_version_code.py derive "$GITHUB_RUN_NUMBER" >>"$GITHUB_ENV"
+      - name: Bootstrap Android toolchain
+        run: tool/bootstrap_android_release_toolchain.sh
+      - name: Materialize throwaway signing and Firebase configuration
+        run: tool/materialize_disposable_android_validation.sh
+      - name: Build and verify Android App Bundle
+        run: tool/build_android_release.sh
+      - name: Remove signing and Firebase files
+        if: always()
+        run: tool/cleanup_android_release.sh
+
+  release:
+    name: Build and upload Google Play internal release
+    if: ${{ inputs.publish }}
+    environment: mobile-release-android
+    concurrency:
+      group: mobile-release-android
+      cancel-in-progress: false
+    runs-on: ${{ fromJSON(vars.II_OS_CPU_RUNS_ON) }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      II_OS_WEB_ORIGIN: ${{ vars.II_OS_WEB_ORIGIN }}
+      II_OS_FIREBASE_EXPECTED_PROJECT_ID: ${{ vars.II_OS_FIREBASE_EXPECTED_PROJECT_ID }}
+      II_OS_GOOGLE_PLAY_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.II_OS_GOOGLE_PLAY_WORKLOAD_IDENTITY_PROVIDER }}
+      II_OS_GOOGLE_PLAY_SERVICE_ACCOUNT: ${{ vars.II_OS_GOOGLE_PLAY_SERVICE_ACCOUNT }}
+      II_OS_ANDROID_UPLOAD_WORKFLOW: .github/workflows/mobile-update-android.yml
+      II_OS_ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.II_OS_ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+      II_OS_ANDROID_KEY_PROPERTIES: ${{ secrets.II_OS_ANDROID_KEY_PROPERTIES }}
+      II_OS_ANDROID_GOOGLE_SERVICES_JSON: ${{ secrets.II_OS_ANDROID_GOOGLE_SERVICES_JSON }}
+    steps:
+      - name: Check settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in II_OS_WORKFLOW_REPOSITORY II_OS_WORKFLOW_BRANCH \
+              II_OS_ANDROID_APPLICATION_ID II_OS_ANDROID_BUILD_NAME \
+              II_OS_FFMPEG_ENGINE_STORE II_OS_RELEASE_EVIDENCE_DIR \
+              II_OS_WEB_ORIGIN II_OS_FIREBASE_EXPECTED_PROJECT_ID \
+              II_OS_GOOGLE_PLAY_WORKLOAD_IDENTITY_PROVIDER \
+              II_OS_GOOGLE_PLAY_SERVICE_ACCOUNT \
+              II_OS_ANDROID_UPLOAD_KEYSTORE_BASE64 II_OS_ANDROID_KEY_PROPERTIES \
+              II_OS_ANDROID_GOOGLE_SERVICES_JSON; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Setting $name is not configured; see docs/mobile-release.md"
+              exit 1
+            fi
+          done
+          test "$GITHUB_REPOSITORY" = "$II_OS_WORKFLOW_REPOSITORY"
+          test "$GITHUB_REF" = "refs/heads/$II_OS_WORKFLOW_BRANCH"
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Verify the reviewed source, release wrapper, and pinned engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          source tool/workflow_source_identity.sh
+          source tool/ffmpeg_engine_pins.sh
+          ii_os_verify_source_checkout "$GITHUB_WORKSPACE"
+          test "$GITHUB_WORKFLOW_REF" = \
+            "$(ii_os_workflow_ref "$II_OS_ANDROID_UPLOAD_WORKFLOW")"
+          revision="$(ii_os_engine_pin "$GITHUB_WORKSPACE" engine_source_revision)"
+          printf 'II_FFMPEG_ANDROID_ENGINE_ROOT=%s\n' \
+            "$II_OS_FFMPEG_ENGINE_STORE/$revision/android" >>"$GITHUB_ENV"
+      - name: Install pinned Flutter
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter_root="$RUNNER_TEMP/flutter"
+          git init --quiet "$flutter_root"
+          git -C "$flutter_root" remote add origin https://github.com/flutter/flutter.git
+          git -C "$flutter_root" fetch --quiet --depth 1 origin "$FLUTTER_REVISION"
+          git -C "$flutter_root" checkout --quiet --detach "$FLUTTER_REVISION"
+          printf 'FLUTTER_HOME=%s\n' "$flutter_root" >>"$GITHUB_ENV"
+          printf '%s\n' "$flutter_root/bin" >>"$GITHUB_PATH"
+      - name: Derive monotonic Android version code
+        run: python3 tool/android_version_code.py derive "$GITHUB_RUN_NUMBER" >>"$GITHUB_ENV"
+      - name: Bootstrap Android toolchain
+        run: tool/bootstrap_android_release_toolchain.sh
+      - name: Materialize signing and Firebase configuration
+        run: tool/materialize_android_release.sh
+      - name: Build and verify Android App Bundle
+        run: tool/build_android_release.sh
+      - name: Authenticate to Google Play with GitHub OIDC
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.II_OS_GOOGLE_PLAY_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.II_OS_GOOGLE_PLAY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+          cleanup_credentials: true
+      - name: Upload Android App Bundle to internal testing
+        run: tool/upload_android_internal.sh
+      - name: Remove signing and Firebase files
+        if: always()
+        run: tool/cleanup_android_release.sh

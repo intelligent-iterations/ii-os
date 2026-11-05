@@ -138,6 +138,7 @@ final class IiOsApi {
     required this.passwordlessAuth,
     required this.webOrigin,
     required this.agentRepositories,
+    required this.agentEngines,
     BugReportService? bugReports,
     ErrorReporter? errors,
     ClientErrorRateLimiter? clientErrorRateLimiter,
@@ -169,6 +170,7 @@ final class IiOsApi {
   final PasswordlessAuthService passwordlessAuth;
   final String webOrigin;
   final AgentRepositoryTopology agentRepositories;
+  final AgentEngineCatalog agentEngines;
   final BugReportService bugReports;
   final ErrorReporter errors;
   final ClientErrorRateLimiter clientErrorRateLimiter;

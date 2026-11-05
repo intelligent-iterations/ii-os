@@ -19,6 +19,7 @@ final class FakeOrganizationResourceRepository
   Object? failure;
   OrganizationGcpResourceDraft? gcp;
   OrganizationRunnerPoolDraft? runner;
+  final List<OrganizationRunnerPoolDraft> savedRunners = [];
   WorkspaceResourceGrantsModel? grants;
   String? promotedSourceWorkspaceId;
   int fleetSyncs = 0;
@@ -45,6 +46,7 @@ final class FakeOrganizationResourceRepository
   }) async {
     _failIfNeeded();
     runner = resource;
+    savedRunners.add(resource);
   }
 
   @override

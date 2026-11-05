@@ -1,0 +1,70 @@
+{
+  "credentialBindings": [
+    {
+      "assignment": "source.read",
+      "key": "II_OS_GITHUB_APP_READ_TOKEN",
+      "provider": "github-actions",
+      "resource": "acme-co/example-app"
+    },
+    {
+      "assignment": "harness.codex.oauth",
+      "key": "CODEX_AUTH_JSON",
+      "provider": "github-actions",
+      "resource": "acme-co/example-app"
+    },
+    {
+      "assignment": "usage.report",
+      "key": "II_OS_AGENT_USAGE_API_KEY",
+      "provider": "github-actions",
+      "resource": "acme-co/example-app"
+    }
+  ],
+  "environment": {
+    "cpu": 2,
+    "diskGiB": 40,
+    "hosting": {
+      "provider": "github"
+    },
+    "image": "registry.example.com/acme-co/ii-os-agent-worker@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "memoryMiB": 4096,
+    "provider": "docker",
+    "setup": {
+      "enabled": false
+    },
+    "userNamespaces": true
+  },
+  "harness": {
+    "model": "gpt-5.6-sol",
+    "name": "codex",
+    "version": "0.164.0"
+  },
+  "id": "pull-request-reviewer",
+  "instructions": "Complete the approved ticket using the supplied instructions.",
+  "limits": {
+    "computeMicrousdPerMinute": 0,
+    "enabled": false,
+    "inputMicrousdPerMillionTokens": 1,
+    "maxConcurrent": 1,
+    "maxCostMicrousdPerMonth": 1,
+    "maxInputTokensPerRequest": 1000000,
+    "maxModelCostMicrousdPerRun": 1,
+    "maxModelRequests": 1000,
+    "maxOutputTokensPerRequest": 100000,
+    "maxRunsPerMonth": 1000,
+    "maxRunsPerSubject": 100,
+    "outputMicrousdPerMillionTokens": 1,
+    "timeoutMinutes": 60
+  },
+  "revision": "2026-11-04.1",
+  "schemaVersion": 2,
+  "source": {
+    "additionalRepositories": [],
+    "appId": 1234567,
+    "installationId": 76543210,
+    "permissions": {
+      "contents": "read"
+    },
+    "provider": "github",
+    "repository": "acme-co/example-app"
+  }
+}

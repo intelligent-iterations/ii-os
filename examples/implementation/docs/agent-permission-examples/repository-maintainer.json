@@ -1,0 +1,38 @@
+{
+  "allowed_actions": [
+    "Read and edit files in the selected repository",
+    "Run repository tests and validation commands",
+    "Create implementation commits and a reviewable pull request",
+    "Merge the exact approved pull request to dev",
+    "Comment implementation evidence on the existing source ticket"
+  ],
+  "denied_actions": [
+    "Create new GitHub issues or Project items",
+    "Set Done or another human-only Project status",
+    "Push to public mirrors",
+    "Use credentials not declared by this profile"
+  ],
+  "description": "Implements and verifies repository changes, opens a pull request, and may merge the exact reviewed change to dev.",
+  "display_name": "Repository maintainer",
+  "engine": "codex",
+  "id": "repository-maintainer",
+  "repository_actions": {
+    "mode": "maintain_dev"
+  },
+  "runtime": {
+    "configuration": {
+      "path": ".ii-os/runtimes/repository-maintainer.json",
+      "sha256": "29facc0923c0f4133fd68a7df231fb29b4ecd5803357b2bfa69196d0e70e5936"
+    },
+    "execution_binding": {
+      "path": ".ii-os/runtimes/execution-binding.json",
+      "sha256": "5c4681be3763baf05b7aca19cf4395623fd0dd38b6cdf7b504f257234e257000"
+    }
+  },
+  "schema_version": 4,
+  "version": "2026-11-04.1",
+  "workflow": {
+    "file": "ii-os-agent-task.yml",
+    "ref": "dev"
+  }
+}

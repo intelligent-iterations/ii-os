@@ -5,6 +5,7 @@ import 'package:firebase_functions/firebase_functions.dart';
 import 'package:googleapis/secretmanager/v1.dart' as secretmanager;
 import 'package:googleapis_auth/auth_io.dart';
 import 'package:ii_interactive_sessions/ii_interactive_sessions.dart';
+import 'package:ii_os_functions/src/agent_permission_profile.dart';
 import 'package:ii_os_functions/src/agent_repository_topology.dart';
 import 'package:ii_os_functions/src/agent_trusted_source_manifest.dart';
 import 'package:ii_os_functions/src/agent_usage_key_codec.dart';
@@ -126,6 +127,14 @@ final agentTrustedSourceManifestBase64 = defineString(
   'II_OS_AGENT_TRUSTED_SOURCE_MANIFEST_BASE64',
   const ParamOptions(defaultValue: ''),
 );
+final runnerCapacityProvider = defineString(
+  'II_OS_RUNNER_CAPACITY_PROVIDER',
+  const ParamOptions(defaultValue: 'none'),
+);
+final localAgentEngines = defineString(
+  'II_OS_LOCAL_AGENT_ENGINES_BASE64',
+  const ParamOptions(defaultValue: ''),
+);
 final authEmailFromAddress = defineString(
   'II_OS_AUTH_EMAIL_FROM_ADDRESS',
   const ParamOptions(defaultValue: ''),
@@ -222,6 +231,13 @@ Future<IiOsApi> _buildApi(Firebase firebase) async {
   final agentSourceManifest = AgentTrustedSourceManifest.fromBase64(
     agentTrustedSourceManifestBase64.value(),
   );
+  // Empty offers Codex only; an invalid value stops startup by name.
+  final agentEngines = AgentEngineCatalog.fromBase64(localAgentEngines.value());
+  // fleet reads each organization's capacity report; none reads nothing and
+  // leaves the model check to the workflow. An invalid value stops startup.
+  final capacityProvider = parseRunnerCapacityProvider(
+    runnerCapacityProvider.value(),
+  );
 
   final store = WorkspaceStore(firestore, emulated: emulated);
   final githubQaDeploymentCache = GitHubQaDeploymentCache();
@@ -232,6 +248,7 @@ Future<IiOsApi> _buildApi(Firebase firebase) async {
       emulated: emulated,
       qaDeploymentCache: githubQaDeploymentCache,
       agentSourceManifest: agentSourceManifest,
+      agentEngines: agentEngines,
     );
   }
 
@@ -287,8 +304,9 @@ Future<IiOsApi> _buildApi(Firebase firebase) async {
   final workflowCoordinator = GitHubWorkflowCoordinator(
     githubForWorkspace: githubForWorkspace,
     store: store,
-    classificationRuntime: ClassificationRuntimeGate(
-      reader: fleetSnapshots.read,
+    classificationRuntime: classificationRuntimeGateFor(
+      capacityProvider,
+      fleetReports: fleetSnapshots.read,
     ),
   );
   final notificationDispatcher = GenerationNotificationDispatcher(
@@ -344,6 +362,7 @@ Future<IiOsApi> _buildApi(Firebase firebase) async {
         agentRepositories: agentRepositories,
       ),
       agentRepositories: agentRepositories,
+      agentEngines: agentEngines,
     ),
     connectedDataApi: ConnectedDataApi(
       store: store,
@@ -396,6 +415,7 @@ Future<IiOsApi> _buildApi(Firebase firebase) async {
     interactiveSessions: sessions,
     webOrigin: origin,
     agentRepositories: agentRepositories,
+    agentEngines: agentEngines,
     errors: errors,
   );
 }
@@ -479,6 +499,7 @@ Future<GitHubClient> _githubClientForWorkspace(
   required bool emulated,
   required GitHubQaDeploymentCache qaDeploymentCache,
   required AgentTrustedSourceManifest agentSourceManifest,
+  required AgentEngineCatalog agentEngines,
 }) async {
   final resolver = WorkspaceResourceResolver(store);
   final resolved = await resolver.load(workspace.id);
@@ -496,6 +517,7 @@ Future<GitHubClient> _githubClientForWorkspace(
         privateKey: '',
         qaDeploymentCache: qaDeploymentCache,
         agentTrustedSourceManifest: agentSourceManifest,
+        agentEngines: agentEngines,
       );
     }
     return GitHubClient(
@@ -510,6 +532,7 @@ Future<GitHubClient> _githubClientForWorkspace(
       ),
       qaDeploymentCache: qaDeploymentCache,
       agentTrustedSourceManifest: agentSourceManifest,
+      agentEngines: agentEngines,
     );
   }
 
@@ -524,6 +547,7 @@ Future<GitHubClient> _githubClientForWorkspace(
       privateKey: '',
       qaDeploymentCache: qaDeploymentCache,
       agentTrustedSourceManifest: agentSourceManifest,
+      agentEngines: agentEngines,
     );
   }
   return GitHubClient(
@@ -536,6 +560,7 @@ Future<GitHubClient> _githubClientForWorkspace(
     ),
     qaDeploymentCache: qaDeploymentCache,
     agentTrustedSourceManifest: agentSourceManifest,
+    agentEngines: agentEngines,
   );
 }
 

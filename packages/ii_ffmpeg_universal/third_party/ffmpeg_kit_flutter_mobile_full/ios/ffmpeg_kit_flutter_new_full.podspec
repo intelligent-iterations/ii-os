@@ -31,6 +31,9 @@ Pod::Spec.new do |s|
           test -n "${II_FFMPEG_IOS_ARCHIVE_DIR:-}"
           test -n "${II_FFMPEG_IOS_ATTESTATION:-}"
           test "${II_FFMPEG_ALLOW_DEBUG_FALLBACK:-false}" != true
+          cd "${PODS_TARGET_SRCROOT}"
+          II_FFMPEG_REQUIRE_RELEASE_ENGINE=true \
+            bash "${PODS_TARGET_SRCROOT}/../scripts/setup_ios.sh" --verify-only
           ;;
       esac
     SCRIPT

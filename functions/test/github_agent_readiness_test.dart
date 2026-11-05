@@ -9,6 +9,8 @@ import 'package:ii_os_functions/src/github_client.dart';
 import 'package:ii_os_functions/src/trusted_tag_ruleset_attestation_store.dart';
 import 'package:test/test.dart';
 
+import 'support/local_agent_engine_fixture.dart';
+
 void main() {
   test(
     'configured manifest covers every trusted executable source exactly',
@@ -415,6 +417,64 @@ void main() {
       );
     },
   );
+
+  test('local Qwen readiness has no Codex workflow or secret prerequisite', () {
+    final engines = exampleLocalEngines();
+    final profile = AgentPermissionProfile.parse(
+      exampleLocalQwenProfile(_completeProfile),
+      engines: engines,
+    );
+    final checks = agentProfileChecks(
+      profile,
+      repository: 'acme-co/example-app',
+      engines: engines,
+    );
+
+    expect(
+      checks.map((check) => check['id']),
+      isNot(contains('codex_secret_binding')),
+    );
+    expect(checks, hasLength(2));
+    expect(checks.every((check) => check['status'] == 'passed'), isTrue);
+    expect(
+      agentDispatchReadinessChecks([
+        ...checks,
+        {'id': 'codex_auth_secret', 'status': 'action_required'},
+      ], engine: profile.engine).map((check) => check['id']),
+      isNot(contains('codex_auth_secret')),
+    );
+  });
+
+  test('profile listings name the local engine this deployment offers', () {
+    final listing = {
+      ...exampleLocalQwenProfile(_completeProfile),
+      'repository': 'acme-co/example-app',
+      'ref': 'dev',
+      'path': '.ii-os/agent-permissions/qwen38-repository-maintainer.json',
+      'sha': 'a' * 40,
+    };
+
+    expect(
+      () => executableAgentPermissionProfileFromListings([
+        listing,
+      ], 'qwen38-repository-maintainer'),
+      throwsA(
+        isA<ApiError>().having(
+          (error) => error.code,
+          'code',
+          'agent_engine_not_configured',
+        ),
+      ),
+    );
+    expect(
+      executableAgentPermissionProfileFromListings(
+        [listing],
+        'qwen38-repository-maintainer',
+        engines: exampleLocalEngines(),
+      )?.engine,
+      qwen38LocalAgentEngine,
+    );
+  });
 
   test('profile listing metadata is not parsed as permission schema', () {
     final listing = {

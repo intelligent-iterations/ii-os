@@ -66,16 +66,39 @@ Admin** manages one workspace and may narrow its resource grants, but cannot add
 or widen an organization resource. Other users continue to be scoped by their
 explicit workspace memberships.
 
-Runner capacity comes from the organization-scoped report of an external
-runner control plane, not from the GCP credential. The control plane is not
-part of this repository: ii-os expects one deployed alongside it that reports
-its hosts, accepts job requests, and leases disposable runtimes. Fleet is
-Intelligent Iterations' implementation of that contract, which is why the
-provider value, the stored `fleetSnapshots` report, and the **Sync Fleet
-capacity** action carry its name. Sync reads only a fresh provider attestation
-and derives a conservative envelope from non-draining hosts: the union of
-reported capabilities, the largest per-host CPU/RAM limits, and at most one
-concurrent slot per eligible host. Sync never registers or creates a host.
+Every dispatch from a workspace with explicit grants needs one primary runner
+grant, so an organization needs at least one runner pool before its new
+workspaces can start a workflow. There are two ways to get one, and neither
+creates or connects to a runner:
+
+- **Add your runners** describes runners the organization already runs, such
+  as self-hosted GitHub Actions runners, as a `customer` pool: a name, the
+  runner group its workflows use, its capabilities, and CPU, RAM, and
+  concurrency ceilings. This works on every deployment. The workflow still
+  chooses where it runs; the pool bounds what a workspace grant may ask for.
+  An Organization Admin can edit such a pool or turn it off. Turning it off
+  makes the grants that name it stale, so those workspaces stop dispatching
+  until they select another pool; there is no delete. The id is derived from
+  the name and never reuses an existing id, because saving upserts by id.
+- **Sync reported capacity** reads the organization-scoped report of an
+  external runner control plane, when the deployment has one. The control
+  plane is not part of this repository: ii-os expects one deployed alongside
+  it that reports its hosts, accepts job requests, and leases disposable
+  runtimes. Fleet is Intelligent Iterations' implementation of that contract,
+  which is why the `fleet` provider value and the stored `fleetSnapshots`
+  report carry its name. Sync reads only a fresh provider attestation and
+  derives a conservative envelope from non-draining hosts: the union of
+  reported capabilities, the largest per-host CPU/RAM limits, and at most one
+  concurrent slot per eligible host. Sync never registers or creates a host.
+  On a deployment with no report, sync says so and points to **Add your
+  runners**.
+
+A `fleet` pool's provider pool id is what placement enforces, so it comes only
+from sync. The manual save route accepts only `customer` pools (400
+`runner_provider_not_manual`) and never replaces a reported pool that shares
+the id (409 `runner_pool_reported`). The action is shown whether or not the
+deployment reports capacity, because the client has no deployment setting
+that says which it does.
 
 Organizations produced by the earlier backfill may not yet have an explicit
 `githubInstallationId` or repository boundary. The first user-started sibling

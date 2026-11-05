@@ -205,7 +205,7 @@ extension on IiOsApi {
     },
     execute: () async {
       if (ready) {
-        final activations = AgentActivationStore(store);
+        final activations = AgentActivationStore(store, engines: agentEngines);
         await activations.activate(
           workspaceId: workspaceId,
           projectId: projectId,
@@ -275,7 +275,7 @@ extension on IiOsApi {
           ...dispatch,
         };
       } else {
-        await AgentActivationStore(store).revoke(
+        await AgentActivationStore(store, engines: agentEngines).revoke(
           workspaceId: workspaceId,
           projectItemId: target.itemId,
           actor: actor,
@@ -340,6 +340,7 @@ extension on IiOsApi {
     final profile = executableAgentPermissionProfileFromListings(
       profiles,
       target.ticket.permissionProfile,
+      engines: agentEngines,
     );
     if (profile == null) {
       throw const ApiError(

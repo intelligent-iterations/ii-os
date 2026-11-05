@@ -9,14 +9,17 @@ const classificationWorkflowIdPrefix = 'classification-';
 /// Whether the classification tool can be offered, as the server reports it.
 ///
 /// `checking` and `unconfirmed` are distinct from `notInstalled`: before the
-/// answer arrives, or when the Fleet report is stale, the surface must not
-/// claim the runtime is missing.
+/// answer arrives, or when the runner report is stale, the surface must not
+/// claim the runtime is missing. `checkedOnRun` is offered without a claim
+/// either way: the deployment reports no runner capacity, so the run itself
+/// checks for the model.
 enum ClassificationAvailability {
   checking,
   available,
   notInstalled,
   unconfirmed,
   notConfigured,
+  checkedOnRun,
 }
 
 ClassificationAvailability classificationAvailabilityOf(
@@ -28,6 +31,8 @@ ClassificationAvailability classificationAvailabilityOf(
     WorkflowRuntimeStatus.available => ClassificationAvailability.available,
     WorkflowRuntimeStatus.unavailable =>
       ClassificationAvailability.notInstalled,
+    WorkflowRuntimeStatus.notReported =>
+      ClassificationAvailability.checkedOnRun,
     WorkflowRuntimeStatus.unknown ||
     null => ClassificationAvailability.unconfirmed,
   };

@@ -42,9 +42,12 @@ extension AgentPermissionRoutes on IiOsApi {
       final body = await readJsonObject(request);
       final repository = requiredString(body, 'repository', maxLength: 200);
       final ref = requiredString(body, 'ref', maxLength: 200);
-      final profile = AgentPermissionProfile.parse(body['profile']);
+      final profile = AgentPermissionProfile.parse(
+        body['profile'],
+        engines: agentEngines,
+      );
       requireAgentPermissionRef(ref);
-      requireExecutableAgentProfile(profile);
+      requireExecutableAgentProfile(profile, engines: agentEngines);
       final workspace = await store.getWorkspace(workspaceId);
       final github = await githubForWorkspace(workspace);
       final bootstrapRef = await github.resolveBootstrapTag(

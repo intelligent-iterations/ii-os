@@ -97,7 +97,7 @@ extension WorkflowAgentDispatch on WorkflowApi {
         'dispatchId': claimId,
       },
       execute: () async {
-        final activations = AgentActivationStore(store);
+        final activations = AgentActivationStore(store, engines: agentEngines);
         final approval = await activations.workflowApproval(
           principal: principal,
           workspaceId: workspaceId,
@@ -173,16 +173,20 @@ extension WorkflowAgentDispatch on WorkflowApi {
         'state': state,
       },
       execute: () async {
-        final recorded = await AgentActivationStore(store).recordFleetState(
-          principal: principal,
-          workspaceId: workspaceId,
-          projectItemId: projectItemId,
-          claimId: claimId,
-          issueNumber: issueNumber,
-          fleetJobId: fleetJobId,
-          fleetLeaseId: fleetLeaseId,
-          state: state,
-        );
+        final recorded =
+            await AgentActivationStore(
+              store,
+              engines: agentEngines,
+            ).recordFleetState(
+              principal: principal,
+              workspaceId: workspaceId,
+              projectItemId: projectItemId,
+              claimId: claimId,
+              issueNumber: issueNumber,
+              fleetJobId: fleetJobId,
+              fleetLeaseId: fleetLeaseId,
+              state: state,
+            );
         if (state == 'running') {
           final projectId = recorded['projectId'] as String? ?? '';
           final fieldId = recorded['projectStatusFieldId'] as String? ?? '';
@@ -232,8 +236,11 @@ extension WorkflowAgentDispatch on WorkflowApi {
     final digest = sha256
         .convert(utf8.encode(jsonEncode(result.canonicalJson)))
         .toString();
-    final repositoryPolicy = await AgentActivationStore(store)
-        .repositoryPolicyForFinalization(
+    final repositoryPolicy =
+        await AgentActivationStore(
+          store,
+          engines: agentEngines,
+        ).repositoryPolicyForFinalization(
           principal: principal,
           workspaceId: workspaceId,
           projectItemId: projectItemId,

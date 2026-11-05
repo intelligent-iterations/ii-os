@@ -94,6 +94,16 @@ void main() {
         'fleet_running',
         'fleet_cleaning',
         'fleet_cleaned',
+        'execution_accepted',
+        'execution_waiting_for_capacity',
+        'execution_starting',
+        'execution_running',
+        'execution_finished',
+        'execution_failed',
+        'execution_cancelled',
+        'execution_unknown',
+        'execution_cleaning',
+        'execution_cleaned',
       ]) {
         expect(
           () => requireHumanWorkshopStatusTransition(

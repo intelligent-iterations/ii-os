@@ -1,0 +1,45 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "ollama/qwen3.8-27b-q4_k_m",
+  "share": "disabled",
+  "compaction": {
+    "auto": true,
+    "prune": true,
+    "reserved": 10000
+  },
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Local Ollama",
+      "options": {
+        "baseURL": "http://127.0.0.1:11434/v1"
+      },
+      "models": {
+        "qwen3.8-27b-q4_k_m": {
+          "name": "Qwen3.8 27B Q4_K_M",
+          "reasoning": true,
+          "limit": {
+            "context": 64000,
+            "output": 16384
+          }
+        }
+      }
+    }
+  },
+  "permission": {
+    "*": "deny",
+    "read": "allow",
+    "edit": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "bash": "allow",
+    "todowrite": "allow",
+    "doom_loop": "deny",
+    "task": "deny",
+    "skill": "deny",
+    "question": "deny",
+    "webfetch": "deny",
+    "websearch": "deny",
+    "external_directory": "deny"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "allowed_actions": [
+    "Read and edit files in the selected repository",
+    "Run repository tests and validation commands",
+    "Create implementation commits and a reviewable pull request",
+    "Comment implementation evidence on the existing source ticket"
+  ],
+  "denied_actions": [
+    "Approve or merge pull requests",
+    "Create new GitHub issues or Project items",
+    "Set Done or another human-only Project status",
+    "Push to public mirrors"
+  ],
+  "description": "Implements and verifies repository changes, then opens a pull request for someone else to approve and merge.",
+  "display_name": "Pull request author",
+  "engine": "codex",
+  "id": "pull-request-author",
+  "repository_actions": {
+    "mode": "pull_request"
+  },
+  "runtime": {
+    "configuration": {
+      "path": ".ii-os/runtimes/pull-request-author.json",
+      "sha256": "8694a917bc68d47ea87876614e4e3838219a65c8dd8575d58e56038d84957008"
+    },
+    "execution_binding": {
+      "path": ".ii-os/runtimes/execution-binding.json",
+      "sha256": "5c4681be3763baf05b7aca19cf4395623fd0dd38b6cdf7b504f257234e257000"
+    }
+  },
+  "schema_version": 4,
+  "version": "2026-11-04.1",
+  "workflow": {
+    "file": "ii-os-agent-task.yml",
+    "ref": "dev"
+  }
+}

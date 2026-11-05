@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'api_error.dart';
 
 part 'agent_permission_profile_digest.dart';
+part 'agent_permission_profile_engines.dart';
 part 'agent_permission_profile_runtime.dart';
 part 'agent_permission_profile_schema.dart';
 
@@ -24,6 +25,7 @@ const String iiOsCodexAuthFinalizeWorkflow = 'ii-os-codex-auth-finalize.yml';
 const String iiOsAgentEnvironment = 'ii-os-agent-maintainer';
 const String iiOsAgentBootstrapEnvironment = 'ii-os-agent-bootstrap';
 const String codexAgentEngine = 'codex';
+const String qwen38LocalAgentEngine = 'qwen38-local';
 const Set<String> codexAgentCapabilities = {
   'runtime-docker',
   'auto-agent',
@@ -34,13 +36,10 @@ const Set<String> codexAgentCapabilities = {
   'linux-amd64',
 };
 
-/// Engines that run their own model instead of signing in with Codex OAuth.
-const Set<String> _localModelAgentEngines = {};
-
 /// Whether [engine] signs in with Codex OAuth, so its readiness includes the
 /// Codex credential checks.
 bool agentEngineUsesCodexOAuth(String engine) =>
-    !_localModelAgentEngines.contains(engine);
+    !localModelAgentEngines.contains(engine);
 
 final class AgentPermissionProfile {
   const AgentPermissionProfile({
@@ -60,7 +59,13 @@ final class AgentPermissionProfile {
   }) : _legacyFleet = fleet,
        _legacySecrets = secretInjection;
 
-  factory AgentPermissionProfile.parse(Object? value) {
+  /// Parses and validates a profile against the engines this deployment
+  /// offers. [engines] defaults to Codex only, which refuses every local
+  /// model engine by name.
+  factory AgentPermissionProfile.parse(
+    Object? value, {
+    AgentEngineCatalog engines = AgentEngineCatalog.codexOnly,
+  }) {
     try {
       final json = value is String ? jsonDecode(value) : value;
       final root = _map(json, 'profile');
@@ -87,7 +92,7 @@ final class AgentPermissionProfile {
       return AgentPermissionProfile(
         schemaVersion: schemaVersion,
         engine: schemaVersion >= 3
-            ? _agentEngine(root['engine'])
+            ? _agentEngine(root['engine'], engines)
             : codexAgentEngine,
         id: _safeName(root['id'], 'id'),
         version: _safeName(root['version'], 'version'),
@@ -115,7 +120,7 @@ final class AgentPermissionProfile {
             ? AgentRuntimePolicy.parse(root['runtime'])
             : null,
         workflow: AgentWorkflowPolicy.parse(root['workflow']),
-      )._validated();
+      )._validated(engines);
     } on ApiError {
       rethrow;
     } on Object {
@@ -148,13 +153,13 @@ final class AgentPermissionProfile {
 
   final AgentWorkflowPolicy workflow;
 
-  AgentPermissionProfile _validated() {
+  AgentPermissionProfile _validated(AgentEngineCatalog engines) {
     if (schemaVersion == 4) {
       requireRuntimeAgentProfile(this);
       return this;
     }
     final capabilities = fleet.capabilities.toSet();
-    final requiredCapabilities = agentCapabilitiesForEngine(engine);
+    final requiredCapabilities = agentCapabilitiesForEngine(engine, engines);
     final allowedCapabilities = {...requiredCapabilities, 'slack-notify'};
     if (fleet.runtimeKind != 'docker' ||
         !capabilities.containsAll(requiredCapabilities) ||
@@ -163,6 +168,14 @@ final class AgentPermissionProfile {
         400,
         'agent_permission_invalid',
         'The Fleet execution policy must use Docker and only the supported agent capabilities.',
+      );
+    }
+    final local = engines.localPolicy(engine);
+    if (local != null && !local.admits(fleet)) {
+      throw const ApiError(
+        400,
+        'agent_permission_invalid',
+        'The local Qwen engine must use its reviewed execution profile, immutable image, and VRAM reservation.',
       );
     }
     if (engine == codexAgentEngine && fleet.resources.containsKey('vram_mb')) {
@@ -288,7 +301,10 @@ final class AgentRepositoryPolicy {
   Map<String, Object?> toJson() => {'mode': mode};
 }
 
-void requireExecutableAgentProfile(AgentPermissionProfile profile) {
+void requireExecutableAgentProfile(
+  AgentPermissionProfile profile, {
+  AgentEngineCatalog engines = AgentEngineCatalog.codexOnly,
+}) {
   if (profile.schemaVersion == 4) {
     requireRuntimeAgentProfile(profile);
     return;
@@ -330,10 +346,12 @@ void requireExecutableAgentProfile(AgentPermissionProfile profile) {
   if (profile.workflow.file != iiOsAgentTaskWorkflow ||
       profile.workflow.ref != 'dev' ||
       profile.secretInjection.environment != iiOsAgentEnvironment ||
-      !capabilities.containsAll(agentCapabilitiesForEngine(profile.engine)) ||
+      !capabilities.containsAll(
+        agentCapabilitiesForEngine(profile.engine, engines),
+      ) ||
       capabilities.any(
         (item) => !{
-          ...agentCapabilitiesForEngine(profile.engine),
+          ...agentCapabilitiesForEngine(profile.engine, engines),
           'slack-notify',
         }.contains(item),
       ) ||
@@ -347,13 +365,15 @@ void requireExecutableAgentProfile(AgentPermissionProfile profile) {
   }
 }
 
-Set<String> agentCapabilitiesForEngine(String engine) => switch (engine) {
-  codexAgentEngine => codexAgentCapabilities,
-  _ => throw const FormatException('engine is not supported'),
-};
+/// The exact runner capabilities a profile for [engine] must declare in the
+/// deployment described by [engines].
+Set<String> agentCapabilitiesForEngine(
+  String engine, [
+  AgentEngineCatalog engines = AgentEngineCatalog.codexOnly,
+]) => engines.capabilitiesFor(engine);
 
-String _agentEngine(Object? value) {
+String _agentEngine(Object? value, AgentEngineCatalog engines) {
   final engine = _safeName(value, 'engine');
-  agentCapabilitiesForEngine(engine);
+  agentCapabilitiesForEngine(engine, engines);
   return engine;
 }

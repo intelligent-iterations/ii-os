@@ -21,71 +21,16 @@ part 'agent_execution_state_store.dart';
 part 'agent_activation_recovery_state.dart';
 part 'agent_ticket_reset.dart';
 part 'agent_activation_reset_store.dart';
-
-final class AgentActivationClaim {
-  const AgentActivationClaim({
-    required this.profile,
-    required this.trustedSourceSha,
-    required this.trustedSourceRef,
-  });
-
-  final AgentPermissionProfile profile;
-  final String trustedSourceSha;
-  final String trustedSourceRef;
-
-  bool hasSameAuthority(AgentActivationClaim other) =>
-      trustedSourceSha == other.trustedSourceSha &&
-      trustedSourceRef == other.trustedSourceRef &&
-      profile.id == other.profile.id &&
-      profile.version == other.profile.version &&
-      agentPermissionProfileDigest(profile) ==
-          agentPermissionProfileDigest(other.profile);
-}
-
-/// Resolves execution authority only from the immutable human approval.
-///
-/// The mutable `dev` branch can advance after the click. That must neither
-/// widen the approval nor make the approved pass ambiguous.
-AgentActivationClaim? approvedAgentActivationClaim(
-  Map<String, Object?> data, {
-  required String projectId,
-  required AgentQueueTicket ticket,
-}) {
-  final snapshotValue = data['permissionProfileSnapshot'];
-  final snapshot = snapshotValue is Map
-      ? snapshotValue.cast<String, Object?>()
-      : null;
-  AgentPermissionProfile? profile;
-  try {
-    profile = snapshot == null ? null : AgentPermissionProfile.parse(snapshot);
-  } on ApiError {
-    return null;
-  }
-  final trustedSourceSha = data['trustedSourceSha'];
-  final trustedSourceRef = data['trustedSourceRef'];
-  if (profile == null ||
-      !_matchesActivationTicket(data, projectId, ticket) ||
-      data['permissionVersion'] != profile.version ||
-      data['permissionDigest'] != agentPermissionProfileDigest(profile) ||
-      data['workflowFile'] != profile.workflow.file ||
-      profile.workflow.file != iiOsAgentTaskWorkflow ||
-      profile.workflow.ref != ticket.permissionRef ||
-      trustedSourceSha is! String ||
-      !RegExp(r'^[0-9a-f]{40}$').hasMatch(trustedSourceSha) ||
-      trustedSourceRef != 'ii-os-agent-v4-$trustedSourceSha') {
-    return null;
-  }
-  return AgentActivationClaim(
-    profile: profile,
-    trustedSourceSha: trustedSourceSha,
-    trustedSourceRef: trustedSourceRef as String,
-  );
-}
+part 'agent_activation_claim.dart';
 
 final class AgentActivationStore {
-  AgentActivationStore(this.store);
+  AgentActivationStore(this.store, {required this.engines});
 
   final WorkspaceStore store;
+
+  /// The engines this deployment offers. An approved snapshot naming an
+  /// engine the deployment no longer offers is no longer an approval.
+  final AgentEngineCatalog engines;
 
   Future<void> activate({
     required String workspaceId,
@@ -257,6 +202,7 @@ final class AgentActivationStore {
         data,
         projectId: projectId,
         ticket: ticket,
+        engines: engines,
       );
       if (approval == null) {
         final timestamp = Timestamp.fromDate(now);
@@ -312,6 +258,7 @@ final class AgentActivationStore {
         data!,
         projectId: projectId,
         ticket: ticket,
+        engines: engines,
       );
       if (currentApproval == null ||
           !currentApproval.hasSameAuthority(approval)) {

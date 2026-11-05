@@ -1,0 +1,145 @@
+# Report a claimed ii-os request as finished.
+#
+# status: completed
+#   Validates `<work-dir>/out/result.json` and every file it names, mints a
+#   short-lived upload credential through the workspace's workload identity
+#   federation (the calling job needs `id-token: write`), uploads each file to
+#   the request's object prefix without overwriting anything, and reports the
+#   artifacts to ii-os, which verifies them against the bucket.
+#
+# status: failed
+#   Reports `failed`, or `cancelled` when job-status is cancelled. If this run
+#   never claimed the request it claims first; a request another run owns, or
+#   one that is already terminal, is left alone. Needs no token permissions.
+name: ii-os complete
+description: Upload a run's artifacts to the workspace bucket and report the terminal status to ii-os.
+
+inputs:
+  status:
+    description: completed or failed.
+    required: false
+    default: completed
+  connector-url:
+    description: The ii-os API base (vars.II_OS_CONNECTOR_URL).
+    required: true
+  token:
+    description: The workflow token ii-os issued for this repository (secrets.II_OS_TOKEN).
+    required: true
+  request-id:
+    description: The ii_request_id ii-os dispatched.
+    required: true
+  work-dir:
+    description: The run directory the ii-os-claim action created.
+    required: false
+    default: ""
+  bucket:
+    description: The claim's bucket output.
+    required: false
+    default: ""
+  object-prefix:
+    description: The claim's object-prefix output.
+    required: false
+    default: ""
+  workload-identity-provider:
+    description: The claim's workload-identity-provider output.
+    required: false
+    default: ""
+  service-account:
+    description: The claim's service-account output.
+    required: false
+    default: ""
+  allowed-content-types:
+    description: Comma-separated content types this workflow may publish (from its catalog entry).
+    required: false
+    default: ""
+  max-bytes:
+    description: The largest artifact this workflow may publish (from its catalog entry).
+    required: false
+    default: "0"
+  job-status:
+    description: The job status (job.status or needs.<job>.result) when reporting a failure.
+    required: false
+    default: failure
+  error-code:
+    description: The stable error code for a failed run.
+    required: false
+    default: workflow_failed
+  cancelled-error-code:
+    description: The stable error code for a cancelled run.
+    required: false
+    default: workflow_cancelled
+  runner-error-codes:
+    description: Comma-separated codes the runner may report instead, via out/failure.json.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Validate the container's outputs
+      if: ${{ inputs.status == 'completed' }}
+      shell: bash
+      env:
+        II_REQUEST_ID: ${{ inputs.request-id }}
+        WORK_DIR: ${{ inputs.work-dir }}
+        OBJECT_PREFIX: ${{ inputs.object-prefix }}
+        ALLOWED_CONTENT_TYPES: ${{ inputs.allowed-content-types }}
+        MAX_BYTES: ${{ inputs.max-bytes }}
+      run: >-
+        python3 "${GITHUB_ACTION_PATH}/../../../scripts/ii_os_publish.py" plan
+        --work-dir "${WORK_DIR}" --object-prefix "${OBJECT_PREFIX}"
+        --allowed-content-types "${ALLOWED_CONTENT_TYPES}" --max-bytes "${MAX_BYTES}"
+
+    - name: Mint a short-lived upload credential
+      if: ${{ inputs.status == 'completed' }}
+      id: auth
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+      with:
+        workload_identity_provider: ${{ inputs.workload-identity-provider }}
+        service_account: ${{ inputs.service-account }}
+        token_format: access_token
+        access_token_lifetime: 3600s
+        create_credentials_file: false
+        export_environment_variables: false
+
+    - name: Upload to the workspace bucket
+      if: ${{ inputs.status == 'completed' }}
+      shell: bash
+      env:
+        II_REQUEST_ID: ${{ inputs.request-id }}
+        GCP_ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        WORK_DIR: ${{ inputs.work-dir }}
+        BUCKET: ${{ inputs.bucket }}
+      run: >-
+        python3 "${GITHUB_ACTION_PATH}/../../../scripts/ii_os_publish.py" upload
+        --work-dir "${WORK_DIR}" --bucket "${BUCKET}"
+
+    - name: Report the artifacts to ii-os
+      if: ${{ inputs.status == 'completed' }}
+      shell: bash
+      env:
+        II_OS_CONNECTOR_URL: ${{ inputs.connector-url }}
+        II_OS_TOKEN: ${{ inputs.token }}
+        II_REQUEST_ID: ${{ inputs.request-id }}
+        WORK_DIR: ${{ inputs.work-dir }}
+      run: >-
+        python3 "${GITHUB_ACTION_PATH}/../../../scripts/ii_os_publish.py" complete
+        --work-dir "${WORK_DIR}"
+
+    - name: Report the failure to ii-os
+      if: ${{ inputs.status == 'failed' }}
+      shell: bash
+      env:
+        II_OS_CONNECTOR_URL: ${{ inputs.connector-url }}
+        II_OS_TOKEN: ${{ inputs.token }}
+        II_REQUEST_ID: ${{ inputs.request-id }}
+        WORK_DIR: ${{ inputs.work-dir }}
+        JOB_STATUS: ${{ inputs.job-status }}
+        ERROR_CODE: ${{ inputs.error-code }}
+        CANCELLED_ERROR_CODE: ${{ inputs.cancelled-error-code }}
+        RUNNER_ERROR_CODES: ${{ inputs.runner-error-codes }}
+      run: |
+        args=(report-failure --job-status "${JOB_STATUS}" --error-code "${ERROR_CODE}"
+          --cancelled-error-code "${CANCELLED_ERROR_CODE}" --runner-error-codes "${RUNNER_ERROR_CODES}")
+        if [[ -n "${WORK_DIR}" ]]; then args+=(--work-dir "${WORK_DIR}"); fi
+        python3 "${GITHUB_ACTION_PATH}/../../../scripts/ii_os_publish.py" "${args[@]}"

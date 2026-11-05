@@ -109,6 +109,32 @@ void main() {
     expect(find.byIcon(LucideIcons.clock3), findsNothing);
     expect(find.byType(Tooltip), findsNothing);
   });
+
+  testWidgets('Classify tab is open when the deployment reports no runner '
+      'capacity', (tester) async {
+    final controller = AppController()..selectedAccess = _workspaceAccess();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: IiOsTheme.light(),
+        home: Scaffold(
+          body: PlaygroundScreen(
+            controller: controller,
+            templateRepository: const _ClassificationTemplates(
+              WorkflowRuntimeStatus.notReported,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Classify'), findsOneWidget);
+    expect(find.byIcon(LucideIcons.lock), findsNothing);
+    expect(find.byIcon(LucideIcons.clock3), findsNothing);
+    expect(find.byType(Tooltip), findsNothing);
+  });
 }
 
 final class _ClassificationTemplates implements WorkflowTemplateRepository {
@@ -130,7 +156,9 @@ final class _ClassificationTemplates implements WorkflowTemplateRepository {
         displayName: 'Open JEV 9B Classification',
         model: 'autotrust/JEV-9B',
         repository: 'acme-co/example-app',
-        enabled: status == WorkflowRuntimeStatus.available,
+        enabled:
+            status == WorkflowRuntimeStatus.available ||
+            status == WorkflowRuntimeStatus.notReported,
         disabledReason: '',
         runtime: WorkflowRuntimeRequirement(status: status),
       ),

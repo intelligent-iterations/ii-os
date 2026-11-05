@@ -1,0 +1,88 @@
+# What the open-jev image installs, before resolution. The Dockerfile
+# installs the installer from requirements-build.lock.txt, then
+# requirements.lock.txt, generated from this file, both with
+# `pip install --require-hashes --no-deps`, so every package (dependencies
+# included) is pinned to an exact version and hash. After changing anything
+# here or a revision in the Dockerfile, delete both lock files (uv keeps an
+# existing lock's pins) and regenerate them from the kit root:
+#
+#   uv pip compile runners/open-jev/requirements.in --no-deps --generate-hashes \
+#     --python-version 3.12 --python-platform x86_64-manylinux_2_39 \
+#     --exclude-newer 2026-10-28 --exclude-newer-package cuda-pathfinder=2026-11-04 \
+#     --exclude-newer-package filelock=2026-11-04 --exclude-newer-package hf-xet=2026-11-04 \
+#     --output-file runners/open-jev/requirements.lock.txt
+#   printf 'pip==26.2.2\n' | uv pip compile - --no-deps --generate-hashes \
+#     --python-version 3.12 --python-platform x86_64-manylinux_2_39 --exclude-newer 2026-10-28 \
+#     --output-file runners/open-jev/requirements-build.lock.txt
+#
+# Python 3.12 and glibc 2.39 are the image's Ubuntu 24.04 base. Set
+# --exclude-newer to a date at least a week back, so no release younger than
+# that enters the lock.
+# cuda-pathfinder 1.8.5, filelock 4.2.5 and hf-xet 1.8.0 were published inside
+# that week; they are exempted by name because the engine was validated with
+# them. With --no-deps every version here is an exact pin, so nothing else can
+# enter.
+
+# Exactly the set the engine was validated with, compiled with --no-deps;
+# `pip check` in the Dockerfile proves the set is complete. torch 2.13.0 on
+# PyPI is the CUDA 13.0 build; its CUDA libraries are the pinned nvidia
+# wheels.
+torch==2.13.0
+triton==3.7.1
+setuptools==84.2.1
+cuda-toolkit==13.0.3.0
+cuda-bindings==13.4.4
+cuda-pathfinder==1.8.5
+nvidia-cublas==13.1.1.3
+nvidia-cuda-cupti==13.0.85
+nvidia-cuda-nvrtc==13.0.88
+nvidia-cuda-runtime==13.0.96
+nvidia-cudnn-cu13==9.20.0.48
+nvidia-cufft==12.0.0.61
+nvidia-cufile==1.15.1.6
+nvidia-curand==10.4.0.35
+nvidia-cusolver==12.0.4.66
+nvidia-cusparse==12.6.3.3
+nvidia-cusparselt-cu13==0.8.1
+nvidia-nccl-cu13==2.29.7
+nvidia-nvjitlink==13.4.92
+nvidia-nvshmem-cu13==3.4.5
+nvidia-nvtx==13.0.85
+filelock==4.2.5
+fsspec==2026.9.0
+jinja2==3.1.6
+markupsafe==3.0.4
+mpmath==1.3.0
+networkx==3.7
+sympy==1.14.0
+typing-extensions==4.16.0
+transformers==5.16.1
+peft==0.21.0
+accelerate==1.15.0
+flash-linear-attention==0.5.2
+fla-core==0.5.2
+einops==0.8.2
+safetensors==0.8.0
+tokenizers==0.23.3
+huggingface-hub==1.33.0
+hf-xet==1.8.0
+numpy==2.5.4
+packaging==26.3
+psutil==7.2.2
+pyyaml==6.0.3
+regex==2026.9.29
+tqdm==4.70.1
+typer==0.27.3
+click==8.5.0
+rich==15.0.0
+shellingham==1.5.4
+annotated-doc==0.0.5
+markdown-it-py==4.2.0
+mdurl==0.1.2
+pygments==2.21.0
+httpx==0.28.1
+httpcore==1.0.9
+h11==0.16.0
+anyio==4.15.1
+idna==3.20
+certifi==2026.10.23

@@ -1,0 +1,117 @@
+# Workflow kit template. GitHub never runs workflows below examples/; move the
+# kit to the root of your ii-os fork and fill in the settings first. See
+# docs/mobile-release.md.
+#
+# Builds the web and Android FFmpeg engines from the reviewed branch head in a
+# disposable image and stores them, immutable per source commit, under
+# II_OS_FFMPEG_ENGINE_STORE on the runner. The summary prints the values to
+# commit in tool/ffmpeg-engine-pins. The iOS engine is not built here: every
+# iOS release rebuilds and attests it on the macOS runner.
+name: Build FFmpeg engines
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: build-ffmpeg-engines
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and verify the web and Android engines
+    runs-on: ${{ fromJSON(vars.II_OS_CPU_RUNS_ON) }}
+    timeout-minutes: 360
+    permissions:
+      contents: read
+    env:
+      II_OS_WORKFLOW_REPOSITORY: ${{ vars.II_OS_WORKFLOW_REPOSITORY }}
+      II_OS_WORKFLOW_BRANCH: ${{ vars.II_OS_WORKFLOW_BRANCH }}
+      II_OS_FFMPEG_ENGINE_STORE: ${{ vars.II_OS_FFMPEG_ENGINE_STORE }}
+    steps:
+      - name: Check settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in II_OS_WORKFLOW_REPOSITORY II_OS_WORKFLOW_BRANCH \
+              II_OS_FFMPEG_ENGINE_STORE; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Setting $name is not configured; see docs/mobile-release.md"
+              exit 1
+            fi
+          done
+          store="$II_OS_FFMPEG_ENGINE_STORE"
+          if [[ "$store" != /* || ! -d "$store" || -L "$store" ]]; then
+            echo '::error::II_OS_FFMPEG_ENGINE_STORE must be an existing absolute directory on the runner'
+            exit 1
+          fi
+          test "$GITHUB_REPOSITORY" = "$II_OS_WORKFLOW_REPOSITORY"
+          test "$GITHUB_REF" = "refs/heads/$II_OS_WORKFLOW_BRANCH"
+          test "$(uname -s)/$(uname -m)" = Linux/x86_64
+          docker version >/dev/null
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Verify the reviewed source
+        shell: bash
+        run: |
+          set -euo pipefail
+          source tool/workflow_source_identity.sh
+          ii_os_verify_source_checkout "$GITHUB_WORKSPACE"
+      - name: Build, verify, and store the engines
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="$II_OS_FFMPEG_ENGINE_STORE/$GITHUB_SHA"
+          partial="$target.partial-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          if [[ -e "$target" || -L "$target" ]]; then
+            echo "::error::Engines for $GITHUB_SHA already exist; they are immutable per source commit"
+            exit 1
+          fi
+          tag="ii-os-ffmpeg-engines:$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          container=""
+          cleanup() {
+            if [[ -n "$container" ]]; then docker rm --force "$container" >/dev/null; fi
+            docker image rm --force "$tag" >/dev/null 2>&1 || true
+            if [[ -d "$partial" && ! -L "$partial" ]]; then rm -rf -- "$partial"; fi
+          }
+          trap cleanup EXIT
+
+          docker build --pull --no-cache \
+            --file runners/ffmpeg-engines/Dockerfile \
+            --build-arg "II_FFMPEG_ENGINE_SOURCE_SHA=$GITHUB_SHA" \
+            --tag "$tag" \
+            packages/ii_ffmpeg_universal
+          container="$(docker create "$tag")"
+          mkdir -m 0755 "$partial"
+          docker cp "$container:/out/." "$partial/"
+
+          for platform in web android; do
+            test "$(<"$partial/$platform/source-revision")" = "$GITHUB_SHA"
+          done
+          aar="$partial/android/artifacts/ii-ffmpeg-mobile-android.aar"
+          aar_sha="$(sha256sum "$aar" | awk '{print $1}')"
+          test "$(jq -er '.artifacts[] | select(.path == "ii-ffmpeg-mobile-android.aar") | .sha256' \
+            "$partial/android/artifacts/build-attestation.json")" = "$aar_sha"
+          python3 packages/ii_ffmpeg_universal/tool/verify_mobile_engine.py \
+            --lock packages/ii_ffmpeg_universal/tool/mobile_engine_lock.json \
+            android --archive "$aar" --release --expected-sha256 "$aar_sha" >/dev/null
+          python3 packages/ii_ffmpeg_universal/tool/verify_web_engine.py \
+            --artifacts "$partial/web/artifacts" \
+            --ledger "$partial/web/artifacts/source-ledger.json" \
+            --lock packages/ii_ffmpeg_universal/tool/web_engine_lock.json >/dev/null
+          mv "$partial" "$target"
+          chmod -R a-w "$target"
+
+          {
+            echo '## FFmpeg engines'
+            echo
+            echo "Stored under \`$target\`. After reviewing the notices and"
+            echo "verification reports, commit these pins as \`tool/ffmpeg-engine-pins\`:"
+            echo
+            echo '```'
+            echo "engine_source_revision=$GITHUB_SHA"
+            echo "android_aar_sha256=$aar_sha"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"

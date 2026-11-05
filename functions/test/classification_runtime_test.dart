@@ -206,7 +206,7 @@ void main() {
       expect(await gate.status('org-1'), ClassificationRuntimeStatus.unknown);
     });
 
-    test('does not read without an organization or a reader', () async {
+    test('does not read without an organization', () async {
       var reads = 0;
       final gate = ClassificationRuntimeGate(
         reader: (_) async {
@@ -217,9 +217,129 @@ void main() {
 
       expect(await gate.status(''), ClassificationRuntimeStatus.unknown);
       expect(reads, 0);
+    });
+
+    test('a deployment that receives no capacity reports is not reported, '
+        'never unknown', () async {
       expect(
         await ClassificationRuntimeGate().status('org-1'),
-        ClassificationRuntimeStatus.unknown,
+        ClassificationRuntimeStatus.notReported,
+      );
+      expect(
+        await ClassificationRuntimeGate().status(''),
+        ClassificationRuntimeStatus.notReported,
+      );
+    });
+  });
+
+  group('runner capacity provider setting', () {
+    test('parses the two supported providers', () {
+      expect(
+        parseRunnerCapacityProvider('fleet'),
+        RunnerCapacityProvider.fleet,
+      );
+      expect(parseRunnerCapacityProvider('none'), RunnerCapacityProvider.none);
+      expect(
+        parseRunnerCapacityProvider(' none '),
+        RunnerCapacityProvider.none,
+      );
+    });
+
+    test('an unsupported value stops startup by naming the setting', () {
+      for (final value in ['', 'Fleet', 'github', 'off']) {
+        expect(
+          () => parseRunnerCapacityProvider(value),
+          throwsA(
+            isA<FormatException>().having(
+              (error) => error.message,
+              'message',
+              contains('II_OS_RUNNER_CAPACITY_PROVIDER'),
+            ),
+          ),
+          reason: value,
+        );
+      }
+    });
+
+    test('fleet reads organization reports; none configures no reader', () {
+      Future<Map<String, Object?>?> reports(String _) async => null;
+
+      expect(
+        classificationRuntimeGateFor(
+          RunnerCapacityProvider.fleet,
+          fleetReports: reports,
+        ).reader,
+        same(reports),
+      );
+      expect(
+        classificationRuntimeGateFor(
+          RunnerCapacityProvider.none,
+          fleetReports: reports,
+        ).reader,
+        isNull,
+      );
+    });
+  });
+
+  group('classification dispatch admission', () {
+    Future<void> admit(ClassificationRuntimeGate gate) async =>
+        requireClassificationRuntime(await gate.status('org-1'));
+
+    final refused = throwsA(
+      isA<ApiError>()
+          .having((error) => error.status, 'status', 409)
+          .having(
+            (error) => error.code,
+            'code',
+            'classification_runtime_unavailable',
+          ),
+    );
+
+    test('a deployment without capacity reports can dispatch, and reads '
+        'nothing', () async {
+      await expectLater(
+        admit(
+          classificationRuntimeGateFor(
+            RunnerCapacityProvider.none,
+            fleetReports: (_) async => fail('no report may be read'),
+          ),
+        ),
+        completes,
+      );
+    });
+
+    test('a configured reader with no host advertising the model still '
+        'refuses', () async {
+      await expectLater(
+        admit(
+          ClassificationRuntimeGate(
+            reader: (_) async => _snapshot(
+              hosts: [
+                _host(capabilities: ['runtime-docker']),
+              ],
+            ),
+          ),
+        ),
+        refused,
+      );
+    });
+
+    test('a configured reader whose organization never reported still '
+        'refuses', () async {
+      await expectLater(
+        admit(ClassificationRuntimeGate(reader: (_) async => null)),
+        refused,
+      );
+    });
+
+    test('a capacity read error still refuses', () async {
+      await expectLater(
+        admit(
+          ClassificationRuntimeGate(
+            reader: (_) async => throw StateError('store unavailable'),
+          ),
+        ),
+        refused,
       );
     });
   });
@@ -259,16 +379,34 @@ void main() {
       expect(unavailable['enabled'], isFalse);
       expect(
         unavailable['disabledReason'],
-        'Waiting for the open JEV runtime image to be installed on a Fleet '
-        'GPU host.',
+        'No runner has the classification model installed yet.',
       );
       expect((unavailable['runtime']! as Map)['status'], 'unavailable');
       expect(unknown['enabled'], isFalse);
       expect(
         unknown['disabledReason'],
-        'Waiting for a fresh Fleet report to confirm the open JEV runtime.',
+        'Waiting for your runners to confirm the classification model is '
+        'installed.',
       );
       expect((unknown['runtime']! as Map)['status'], 'unknown');
+      for (final reason in [
+        unavailable['disabledReason'],
+        unknown['disabledReason'],
+      ]) {
+        expect(reason, isNot(contains('Fleet')));
+      }
+    });
+
+    test('a deployment without capacity reports offers a selected template '
+        'and leaves the model check to the run', () {
+      final template = applyClassificationRuntime({
+        'enabled': true,
+        'disabledReason': '',
+      }, ClassificationRuntimeStatus.notReported);
+
+      expect(template['enabled'], isTrue);
+      expect(template['disabledReason'], '');
+      expect((template['runtime']! as Map)['status'], 'notReported');
     });
 
     test('the workspace selection reason wins over the runtime reason', () {
@@ -282,8 +420,10 @@ void main() {
       expect((template['runtime']! as Map)['status'], 'unavailable');
     });
 
-    test('dispatch is refused unless the runtime is available', () {
+    test('dispatch is refused unless the runtime is available or capacity '
+        'is not reported', () {
       requireClassificationRuntime(ClassificationRuntimeStatus.available);
+      requireClassificationRuntime(ClassificationRuntimeStatus.notReported);
       for (final status in [
         ClassificationRuntimeStatus.unavailable,
         ClassificationRuntimeStatus.unknown,

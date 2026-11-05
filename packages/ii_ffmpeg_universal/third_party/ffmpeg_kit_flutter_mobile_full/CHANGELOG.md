@@ -1,3 +1,8 @@
+## 2.4.1+ii.1 - 2026-11-05 security hardening
+
+- Reverify cached iOS frameworks against the exact local attested archives at
+  every release compile; refuse debug fallback and incomplete installations.
+
 ## 2.4.1+ii.1 - 2026-07-28
 
 Modified by Intelligent Iterations from upstream 2.4.1 between 2026-07-20 and

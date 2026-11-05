@@ -1,0 +1,226 @@
+# Workflow kit template. GitHub never runs workflows below examples/; move the
+# kit to the root of your ii-os fork and fill in the settings first. See
+# docs/mobile-release.md.
+#
+# Dispatching this workflow directly only queries App Store Connect for the
+# processing status of one build; it never uploads. Only mobile-update-ios.yml,
+# which ii-os dispatches from its catalog, calls it with publish=true. Every
+# release rebuilds and attests the iOS FFmpeg engine from this repository.
+name: iOS release
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_name:
+        description: Build version to query, for example 1.0.0
+        required: true
+        type: string
+      build_number:
+        description: Build number to query
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      publish:
+        description: Build, sign, and upload to App Store Connect
+        required: true
+        type: boolean
+    secrets:
+      II_OS_APP_STORE_CONNECT_API_KEY:
+        required: false
+      II_OS_APP_STORE_CONNECT_API_KEY_ID:
+        required: false
+      II_OS_APP_STORE_CONNECT_ISSUER_ID:
+        required: false
+      II_OS_IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64:
+        required: false
+      II_OS_IOS_DISTRIBUTION_CERTIFICATE_PASSWORD:
+        required: false
+      II_OS_IOS_PROVISIONING_PROFILE_BASE64:
+        required: false
+      II_OS_IOS_GOOGLE_SERVICE_INFO_PLIST_BASE64:
+        required: false
+
+permissions: {}
+
+env:
+  II_OS_WORKFLOW_REPOSITORY: ${{ vars.II_OS_WORKFLOW_REPOSITORY }}
+  II_OS_WORKFLOW_BRANCH: ${{ vars.II_OS_WORKFLOW_BRANCH }}
+  IOS_BUNDLE_ID: ${{ vars.II_OS_IOS_BUNDLE_ID }}
+  # Must match tool/build_android_release.sh and the public quality workflow.
+  FLUTTER_REVISION: 924134a44c189315be2148659913dda1671cbe99
+  FASTLANE_VERSION: 2.226.0
+  XCODEPROJ_VERSION: 1.27.0
+  LANG: en_US.UTF-8
+  LC_ALL: en_US.UTF-8
+
+jobs:
+  status:
+    name: Query App Store Connect build status
+    if: ${{ !inputs.publish }}
+    environment: mobile-release-ios
+    runs-on: ${{ fromJSON(vars.II_OS_MACOS_RUNS_ON) }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      BUILD_NAME: ${{ inputs.build_name }}
+      BUILD_NUMBER: ${{ inputs.build_number }}
+      APPLE_API_KEY: ${{ secrets.II_OS_APP_STORE_CONNECT_API_KEY }}
+      APPLE_API_KEY_ID: ${{ secrets.II_OS_APP_STORE_CONNECT_API_KEY_ID }}
+      APPLE_ISSUER_ID: ${{ secrets.II_OS_APP_STORE_CONNECT_ISSUER_ID }}
+    steps:
+      - name: Check settings and inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in II_OS_WORKFLOW_REPOSITORY II_OS_WORKFLOW_BRANCH \
+              IOS_BUNDLE_ID APPLE_API_KEY APPLE_API_KEY_ID APPLE_ISSUER_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Setting for $name is not configured; see docs/mobile-release.md"
+              exit 1
+            fi
+          done
+          test "$GITHUB_REPOSITORY" = "$II_OS_WORKFLOW_REPOSITORY"
+          case "$BUILD_NAME" in ''|*[!0-9A-Za-z.-]*) exit 1 ;; esac
+          case "$BUILD_NUMBER" in ''|*[!0-9]*) exit 1 ;; esac
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Install the App Store Connect client
+        shell: bash
+        run: |
+          set -euo pipefail
+          gem_user_dir="$(ruby -rrubygems -e 'print Gem.user_dir')"
+          printf '%s/bin\n' "$gem_user_dir" >>"$GITHUB_PATH"
+          gem install --user-install fastlane -v "$FASTLANE_VERSION" \
+            --no-document --conservative
+      - name: Query the exact build without uploading
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="ii-os-app-store-status:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}"
+          state="$RUNNER_TEMP/ii-os-app-store-status-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          test ! -e "$state" && test ! -L "$state"
+          mkdir -m 0700 "$state"
+          printf '%s\n' "$owner" >"$state/.ii-disposable-owner"
+          cleanup() {
+            test -d "$state" && test ! -L "$state"
+            test "$(<"$state/.ii-disposable-owner")" = "$owner"
+            rm -rf -- "$state"
+          }
+          trap cleanup EXIT
+          key_path="$state/AuthKey.p8"
+          if printf '%s' "$APPLE_API_KEY" | grep -q 'BEGIN PRIVATE KEY'; then
+            printf '%s' "$APPLE_API_KEY" >"$key_path"
+          else
+            printf '%s' "$APPLE_API_KEY" | tr -d '\n' | base64 -D >"$key_path"
+          fi
+          chmod 0600 "$key_path"
+          APP_STORE_CONNECT_KEY_PATH="$key_path" \
+            ruby tool/query_ios_app_store_build.rb >"$state/status.json"
+          {
+            echo '## App Store Connect build status'
+            echo
+            echo "- Build: \`${BUILD_NAME}+${BUILD_NUMBER}\`"
+            echo "- Outcome: \`$(jq -r .outcome "$state/status.json")\`"
+          } >>"$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: Build and upload App Store Connect release
+    if: ${{ inputs.publish }}
+    environment: mobile-release-ios
+    concurrency:
+      group: mobile-release-ios
+      cancel-in-progress: false
+    runs-on: ${{ fromJSON(vars.II_OS_MACOS_RUNS_ON) }}
+    timeout-minutes: 300
+    permissions:
+      contents: read
+    env:
+      BUILD_NAME: ${{ vars.II_OS_MOBILE_BUILD_NAME }}
+      BUILD_NUMBER: ${{ github.run_number }}
+      APPLE_TEAM_ID: ${{ vars.II_OS_APPLE_TEAM_ID }}
+      II_OS_CONTROL_API_BASE_URL: ${{ vars.II_OS_CONTROL_API_BASE_URL }}
+      II_OS_FIREBASE_AUTH_DOMAIN: ${{ vars.II_OS_FIREBASE_AUTH_DOMAIN }}
+      APPLE_API_KEY: ${{ secrets.II_OS_APP_STORE_CONNECT_API_KEY }}
+      APPLE_API_KEY_ID: ${{ secrets.II_OS_APP_STORE_CONNECT_API_KEY_ID }}
+      APPLE_ISSUER_ID: ${{ secrets.II_OS_APP_STORE_CONNECT_ISSUER_ID }}
+      IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64: ${{ secrets.II_OS_IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64 }}
+      IOS_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.II_OS_IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+      II_OS_DEV_IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.II_OS_IOS_PROVISIONING_PROFILE_BASE64 }}
+      II_OS_IOS_GOOGLE_SERVICE_INFO_PLIST_BASE64: ${{ secrets.II_OS_IOS_GOOGLE_SERVICE_INFO_PLIST_BASE64 }}
+      II_OS_IOS_UPLOAD_WORKFLOW: .github/workflows/mobile-update-ios.yml
+    steps:
+      - name: Check settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in II_OS_WORKFLOW_REPOSITORY II_OS_WORKFLOW_BRANCH \
+              IOS_BUNDLE_ID APPLE_TEAM_ID BUILD_NAME II_OS_CONTROL_API_BASE_URL \
+              II_OS_FIREBASE_AUTH_DOMAIN APPLE_API_KEY APPLE_API_KEY_ID \
+              APPLE_ISSUER_ID IOS_DISTRIBUTION_CERTIFICATE_P12_BASE64 \
+              IOS_DISTRIBUTION_CERTIFICATE_PASSWORD \
+              II_OS_DEV_IOS_PROVISIONING_PROFILE_BASE64 \
+              II_OS_IOS_GOOGLE_SERVICE_INFO_PLIST_BASE64; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Setting for $name is not configured; see docs/mobile-release.md"
+              exit 1
+            fi
+          done
+          test "$GITHUB_REPOSITORY" = "$II_OS_WORKFLOW_REPOSITORY"
+          test "$GITHUB_REF" = "refs/heads/$II_OS_WORKFLOW_BRANCH"
+          test "$(uname -s)/$(uname -m)" = Darwin/arm64
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Verify the reviewed source and release wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          source tool/workflow_source_identity.sh
+          ii_os_verify_source_checkout "$GITHUB_WORKSPACE"
+          test "$GITHUB_WORKFLOW_REF" = \
+            "$(ii_os_workflow_ref "$II_OS_IOS_UPLOAD_WORKFLOW")"
+      - name: Install pinned Flutter and release tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter_root="$RUNNER_TEMP/flutter"
+          git init --quiet "$flutter_root"
+          git -C "$flutter_root" remote add origin https://github.com/flutter/flutter.git
+          git -C "$flutter_root" fetch --quiet --depth 1 origin "$FLUTTER_REVISION"
+          git -C "$flutter_root" checkout --quiet --detach "$FLUTTER_REVISION"
+          printf '%s\n' "$flutter_root/bin" >>"$GITHUB_PATH"
+          export PATH="$flutter_root/bin:$PATH"
+          gem_user_dir="$(ruby -rrubygems -e 'print Gem.user_dir')"
+          printf '%s/bin\n' "$gem_user_dir" >>"$GITHUB_PATH"
+          gem install --user-install xcodeproj -v "$XCODEPROJ_VERSION" --no-document
+          gem install --user-install fastlane -v "$FASTLANE_VERSION" \
+            --no-document --conservative
+          flutter config --no-analytics --enable-ios --enable-swift-package-manager
+          flutter precache --ios --universal
+          xcodebuild -version
+          test "$(xcrun --sdk iphoneos --show-sdk-version | cut -d. -f1)" -ge 26
+      - name: Create run-owned engine state
+        shell: bash
+        run: |
+          set -euo pipefail
+          state="$(mktemp -d "$RUNNER_TEMP/ii-os-client-processing.XXXXXXXX")"
+          printf 'ii-os-client-processing:%s:%s\n' \
+            "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >"$state/.ii-disposable-owner"
+          printf 'II_OS_CLIENT_PROCESSING_STATE=%s\n' "$state" >>"$GITHUB_ENV"
+      - name: Build and attest the iOS FFmpeg engine
+        run: tool/prepare_ios_release_engine.sh
+      - name: Materialize run-owned signing configuration
+        run: tool/ios_app_store_release.sh prepare
+      - name: Build and verify signed IPA
+        run: tool/ios_app_store_release.sh build
+      - name: Upload to App Store Connect
+        run: tool/ios_app_store_release.sh upload
+      - name: Remove signing configuration
+        if: always()
+        run: tool/ios_app_store_release.sh cleanup
+      - name: Remove engine state
+        if: always()
+        run: tool/cleanup_pinned_client_processing.sh

@@ -34,6 +34,7 @@ final class InteractiveUiBridgeController extends ChangeNotifier {
   StreamSubscription<SessionFrame>? _frames;
   int _revision = 1;
   bool _enabled = false;
+  bool _disposed = false;
 
   int get revision => _revision;
   bool get enabled => _enabled;
@@ -41,18 +42,20 @@ final class InteractiveUiBridgeController extends ChangeNotifier {
       _bindings.values.map((item) => item.node).toList(growable: false);
 
   Future<void> enable() async {
+    if (_disposed) return;
     if (_enabled) return;
     _enabled = true;
     _frames = client.frames.listen(_onFrame);
     await publishState();
-    notifyListeners();
+    if (!_disposed) notifyListeners();
   }
 
   Future<void> disable() async {
     _enabled = false;
+    _revision++;
     await _frames?.cancel();
     _frames = null;
-    notifyListeners();
+    if (!_disposed) notifyListeners();
   }
 
   void register(UiElementBinding binding) {
@@ -119,12 +122,21 @@ final class InteractiveUiBridgeController extends ChangeNotifier {
       await _result(frame.id, 'approval_denied');
       return;
     }
+    // Approval may outlive sharing or the UI it described. Re-check authority
+    // at the action boundary, including a disable/re-enable cycle.
+    if (!_enabled || _disposed) return;
+    if (request.expectedRevision != _revision ||
+        !identical(_bindings[request.targetId], binding)) {
+      await _result(frame.id, 'stale');
+      return;
+    }
     try {
       await binding.onAction(request);
+      if (!_enabled || _disposed) return;
       _revision++;
       await publishState();
       await _result(frame.id, 'applied');
-      notifyListeners();
+      if (!_disposed) notifyListeners();
     } on Object {
       await _result(frame.id, 'failed');
     }
@@ -137,27 +149,39 @@ final class InteractiveUiBridgeController extends ChangeNotifier {
       return;
     }
     try {
+      final requestedRevision = _revision;
       final screenshot = await capture(_revision);
-      if (screenshot.revision != _revision) {
+      if (!_enabled || _disposed) return;
+      if (requestedRevision != _revision || screenshot.revision != _revision) {
         await _result(frame.id, 'stale');
         return;
       }
-      await client.publishScreenshot(screenshot);
+      await client.publishScreenshot(
+        screenshot,
+        isCancelled: () =>
+            !_enabled || _disposed || requestedRevision != _revision,
+      );
     } on Object {
       await _result(frame.id, 'approval_denied');
     }
   }
 
-  Future<void> _result(String actionId, String status) => client.sendFrame(
-    SessionFrame(
-      type: 'ui.action.result',
-      id: actionId,
-      payload: {'status': status, 'revision': _revision},
-    ),
-  );
+  Future<void> _result(String actionId, String status) async {
+    if (_disposed) return;
+    await client.sendFrame(
+      SessionFrame(
+        type: 'ui.action.result',
+        id: actionId,
+        payload: {'status': status, 'revision': _revision},
+      ),
+    );
+  }
 
   @override
   void dispose() {
+    _disposed = true;
+    _enabled = false;
+    _revision++;
     unawaited(_frames?.cancel());
     super.dispose();
   }

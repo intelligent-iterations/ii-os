@@ -1,0 +1,29 @@
+diff --git a/src/optimization/compatibility.py b/src/optimization/compatibility.py
+index 96ec2c7..6c81d49 100644
+--- a/src/optimization/compatibility.py
++++ b/src/optimization/compatibility.py
+@@ -7,6 +7,7 @@ Extracted from: seedvr2.py (lines 1045-1630)
+ import sys
+ import types
+ import importlib.machinery
++import importlib.util
+ 
+ 
+ def ensure_triton_compat():
+@@ -39,11 +40,15 @@ def ensure_flash_attn_safe():
+     """
+     if 'flash_attn' in sys.modules:
+         return  # Already loaded
++
++    installed = importlib.util.find_spec('flash_attn') is not None
+     
+     try:
+         import flash_attn
+     except (ImportError, OSError):
+-        # DLL broken or not installed - create stub with proper __spec__
++        if not installed:
++            return  # Diffusers handles an absent optional dependency itself.
++        # Installed but broken DLL - create stub with proper __spec__.
+         stub = types.ModuleType('flash_attn')
+         stub.__spec__ = importlib.machinery.ModuleSpec('flash_attn', None)
+         stub.__file__ = None

@@ -89,6 +89,14 @@ void main() {
       expect(templates.last.runtime, isNull);
     });
 
+    test('a deployment that reports no runner capacity parses as not '
+        'reported', () {
+      expect(
+        WorkflowRuntimeRequirement.fromJson({'status': 'notReported'})?.status,
+        WorkflowRuntimeStatus.notReported,
+      );
+    });
+
     test('an unrecognised status is unknown, never available', () {
       expect(
         WorkflowRuntimeRequirement.fromJson({
@@ -282,6 +290,25 @@ void main() {
       classificationFailureMessage('something_new'),
       isNot(contains('something_new')),
     );
+  });
+
+  test('a missing model names the runner the person owns, never Fleet', () {
+    expect(
+      classificationFailureMessage('classification_runtime_unavailable'),
+      'No runner has the classification model installed yet.',
+    );
+    expect(
+      classificationFailureMessage('classification_model_missing'),
+      'The classification model is not installed on your GPU runner yet. '
+      'Install it there, then try again.',
+    );
+    for (final code in [
+      'classification_runtime_unavailable',
+      'classification_model_missing',
+      'classification_fleet_allocation_failed',
+    ]) {
+      expect(classificationFailureMessage(code), isNot(contains('Fleet')));
+    }
   });
 
   test('result views state the verdict and mark the leading option', () {

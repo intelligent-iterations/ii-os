@@ -321,6 +321,32 @@ extension GitHubProjects on GitHubClient {
         'description': description is String ? description.trim() : '',
       });
     }
+    // The mutation accepts only a field ID, so GitHub cannot enforce the
+    // workspace's selected project on our behalf. Bind the field to that
+    // project before using the organization-scoped installation permission.
+    final field = await _graphql(
+      workspace,
+      r'''
+        query ProjectFieldOwner($fieldId: ID!) {
+          node(id: $fieldId) {
+            ... on ProjectV2SingleSelectField { id project { id } }
+          }
+        }
+      ''',
+      {'fieldId': fieldId},
+    );
+    final node = field['node'];
+    final project = node is Map<String, Object?> ? node['project'] : null;
+    if (node is! Map<String, Object?> ||
+        node['id'] != fieldId ||
+        project is! Map<String, Object?> ||
+        project['id'] != projectId) {
+      throw const ApiError(
+        403,
+        'project_field_not_allowed',
+        'Project field is not configured for this workspace.',
+      );
+    }
     return _graphql(
       workspace,
       r'''

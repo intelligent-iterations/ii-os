@@ -13,12 +13,14 @@ final class InteractiveSessionDetailViewModel extends BaseViewModel {
     required this.workspaceId,
     required this.sessionId,
     required this.route,
+    this.transport = const WebSocketSessionTransport(),
   });
 
   final InteractiveSessionRepository _sessions;
   final String workspaceId;
   final String sessionId;
   final String Function() route;
+  final SessionTransport transport;
   InteractiveSessionClient? _client;
   InteractiveSessionClient? _frontendClient;
   InteractiveTerminalController? terminal;
@@ -27,44 +29,70 @@ final class InteractiveSessionDetailViewModel extends BaseViewModel {
   String subject = '';
   String? errorMessage;
   bool stopping = false;
+  bool _disposed = false;
+  bool _uiAuthority = false;
+  bool _disablingUi = false;
+  int _startGeneration = 0;
+  int _uiGeneration = 0;
 
   bool get uiAccessEnabled => uiBridge?.enabled == true;
   bool get canManage =>
-      subject.isNotEmpty && session?.ownerSubject == subject && !stopping;
+      !_disposed &&
+      subject.isNotEmpty &&
+      session?.ownerSubject == subject &&
+      !stopping;
 
   Future<void> start() async {
+    if (_disposed || isBusy || _disablingUi) return;
+    final generation = ++_startGeneration;
+    bool current() => !_disposed && generation == _startGeneration;
     setBusy(true);
+    InteractiveTerminalController? created;
+    var adopted = false;
     try {
-      final previous = terminal;
+      await disableUiAccess();
+      if (!current()) return;
+      terminal?.dispose();
       terminal = null;
       _client = null;
-      previous?.dispose();
       final loaded = await _sessions.get(workspaceId, sessionId);
+      if (!current()) return;
       final attach = await _sessions.attach(workspaceId, sessionId);
+      if (!current()) return;
       final client = InteractiveSessionClient(
         relayUri: attach.relayUri,
         grant: attach.grant,
-        transport: const WebSocketSessionTransport(),
+        transport: transport,
       );
-      final controller = InteractiveTerminalController(
+      created = InteractiveTerminalController(
         client: client,
         subject: attach.subject,
         canManageSession: attach.role == ParticipantRole.owner.name,
       );
+      await created.connect();
+      if (!current()) return;
       _client = client;
-      terminal = controller;
+      terminal = created;
       session = loaded;
       subject = attach.subject;
-      await controller.connect();
+      adopted = true;
       errorMessage = null;
     } on Object catch (error) {
-      errorMessage = _sessionMessage(
-        error,
-        'The terminal could not connect. Try again.',
-      );
+      if (current()) {
+        errorMessage = _sessionMessage(
+          error,
+          'The terminal could not connect. Try again.',
+        );
+      }
     } finally {
-      setBusy(false);
-      notifyListeners();
+      if (!adopted && created != null) {
+        await created.shutdown();
+        created.dispose();
+      }
+      if (current()) {
+        setBusy(false);
+        notifyListeners();
+      }
     }
   }
 
@@ -74,75 +102,116 @@ final class InteractiveSessionDetailViewModel extends BaseViewModel {
     required UiScreenshotCapture captureScreenshot,
   }) async {
     final ownerClient = _client;
-    if (ownerClient == null || isBusy) return;
+    if (_disposed ||
+        ownerClient == null ||
+        isBusy ||
+        _uiAuthority ||
+        _disablingUi) {
+      return;
+    }
+    final generation = ++_uiGeneration;
+    bool current() => !_disposed && generation == _uiGeneration;
+    _uiAuthority = true;
     setBusy(true);
+    InteractiveSessionClient? created;
+    InteractiveUiBridgeController? bridge;
+    var adopted = false;
     try {
-      const agentSubject = 'agent:codex';
-      session = await _sessions.putParticipant(
+      final updated = await _sessions.putParticipant(
         workspaceId,
         sessionId,
-        agentSubject,
+        'agent:codex',
         ParticipantRole.agent,
       );
+      if (!current()) return;
+      session = updated;
       final grants = await _sessions.issueUiAccess(
         workspaceId,
         sessionId,
-        agentSubject: agentSubject,
+        agentSubject: 'agent:codex',
         allowAct: allowAct,
       );
+      if (!current()) return;
       await ownerClient.installAgentGrant(grants.agentGrant);
-      final frontendClient = InteractiveSessionClient(
+      if (!current()) return;
+      created = InteractiveSessionClient(
         relayUri: grants.relayUri,
         grant: grants.frontendGrant,
-        transport: const WebSocketSessionTransport(),
+        transport: transport,
       );
-      await frontendClient.connect();
-      final bridge = InteractiveUiBridgeController(
-        client: frontendClient,
+      // Keep local ownership until connection and bridge setup both finish.
+      // Cancellation closes even a connection returned after widget teardown.
+      await created.connect();
+      if (!current()) return;
+      bridge = InteractiveUiBridgeController(
+        client: created,
         route: route,
         approveSensitiveAction: approveSensitiveAction,
         captureScreenshot: captureScreenshot,
       );
-      _frontendClient = frontendClient;
+      _frontendClient = created;
       uiBridge = bridge;
       await bridge.enable();
+      if (!current()) return;
+      adopted = true;
       errorMessage = null;
     } on Object catch (error) {
-      errorMessage = _sessionMessage(
-        error,
-        'Codex UI access could not be started.',
-      );
+      if (current()) {
+        errorMessage = _sessionMessage(
+          error,
+          'Codex UI access could not be started.',
+        );
+      }
     } finally {
-      setBusy(false);
-      notifyListeners();
+      if (!adopted) {
+        await _discardUiSetup(bridge, created);
+      }
+      if (!_disposed) {
+        setBusy(false);
+        notifyListeners();
+      }
     }
   }
 
+  Future<void> _discardUiSetup(
+    InteractiveUiBridgeController? bridge,
+    InteractiveSessionClient? client,
+  ) async {
+    if (bridge != null && identical(uiBridge, bridge)) {
+      uiBridge = null;
+      await bridge.disable();
+      bridge.dispose();
+    }
+    if (identical(_frontendClient, client)) _frontendClient = null;
+    await _closeClient(client);
+    // Repeat after pending server calls settle: an earlier teardown
+    // revocation may have raced participant/grant creation on the server.
+    await _revokeUiAuthority();
+    _uiAuthority = false;
+  }
+
   Future<void> disableUiAccess({bool revokeAgent = true}) async {
-    Object? revokeError;
-    if (revokeAgent) {
-      try {
-        session = await _sessions.revokeParticipant(
-          workspaceId,
-          sessionId,
-          'agent:codex',
-        );
-      } on Object catch (error) {
-        revokeError = error;
-      }
-    }
-    await uiBridge?.disable();
-    uiBridge?.dispose();
+    if (_disablingUi) return;
+    _disablingUi = true;
+    ++_uiGeneration;
+    final bridge = uiBridge;
+    final client = _frontendClient;
+    final hadAuthority = _uiAuthority;
     uiBridge = null;
-    await _frontendClient?.dispose();
     _frontendClient = null;
-    if (revokeError != null) {
-      errorMessage = _sessionMessage(
-        revokeError,
-        'Codex UI access could not be fully disabled.',
-      );
+    _uiAuthority = false;
+    try {
+      // Close the local surface before waiting for server-side revocation.
+      if (bridge != null) {
+        await bridge.disable();
+        bridge.dispose();
+      }
+      await _closeClient(client);
+      if (revokeAgent && hadAuthority) await _revokeUiAuthority();
+    } finally {
+      _disablingUi = false;
+      if (!_disposed) notifyListeners();
     }
-    notifyListeners();
   }
 
   Future<bool> invite(String invitedSubject, ParticipantRole role) async {
@@ -193,12 +262,12 @@ final class InteractiveSessionDetailViewModel extends BaseViewModel {
   }
 
   Future<void> stop() async {
-    if (stopping) return;
+    if (_disposed || stopping) return;
     stopping = true;
     notifyListeners();
     try {
-      await _sessions.stop(workspaceId, sessionId);
       await disableUiAccess(revokeAgent: false);
+      await _sessions.stop(workspaceId, sessionId);
       errorMessage = null;
     } on Object catch (error) {
       errorMessage = _sessionMessage(
@@ -213,22 +282,45 @@ final class InteractiveSessionDetailViewModel extends BaseViewModel {
 
   @override
   void dispose() {
-    final hadUiAuthority = uiBridge != null || _frontendClient != null;
+    if (_disposed) return;
+    _disposed = true;
+    ++_startGeneration;
+    ++_uiGeneration;
     terminal?.dispose();
-    uiBridge?.dispose();
-    unawaited(_frontendClient?.dispose());
-    if (hadUiAuthority) {
-      unawaited(_revokeUiAuthorityOnDispose());
-    }
+    terminal = null;
+    _client = null;
+    final bridge = uiBridge;
+    uiBridge = null;
+    bridge?.dispose();
+    final client = _frontendClient;
+    _frontendClient = null;
+    unawaited(_closeClient(client));
+    if (_uiAuthority) unawaited(_revokeUiAuthority());
+    _uiAuthority = false;
     super.dispose();
   }
 
-  Future<void> _revokeUiAuthorityOnDispose() async {
+  Future<void> _closeClient(InteractiveSessionClient? client) async {
     try {
-      await _sessions.revokeParticipant(workspaceId, sessionId, 'agent:codex');
+      await client?.dispose();
     } on Object {
-      // Closing the frontend relay connection already removes the live UI
-      // surface. The server-side rotation is best-effort during widget teardown.
+      // Continue revocation even when the transport cannot confirm closure.
+    }
+  }
+
+  Future<void> _revokeUiAuthority() async {
+    try {
+      final updated = await _sessions.revokeParticipant(
+        workspaceId,
+        sessionId,
+        'agent:codex',
+      );
+      if (!_disposed) session = updated;
+    } on Object {
+      // Local relay connections are closed even if server rotation fails.
+      if (!_disposed) {
+        errorMessage = 'Codex UI access could not be fully disabled.';
+      }
     }
   }
 }

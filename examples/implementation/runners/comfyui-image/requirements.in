@@ -1,0 +1,66 @@
+# What the comfyui-image image installs, before resolution. The Dockerfile
+# installs the installer from requirements-build.lock.txt, then
+# requirements.lock.txt, generated from this file, both with
+# `pip install --require-hashes --no-deps`, so every package (dependencies
+# included) is pinned to an exact version and hash. After changing anything
+# here or a revision in the Dockerfile, delete both lock files (uv keeps an
+# existing lock's pins) and regenerate them from the kit root:
+#
+#   uv pip compile runners/comfyui-image/requirements.in --generate-hashes \
+#     --python-version 3.12 --python-platform x86_64-manylinux_2_39 \
+#     --index-url https://pypi.org/simple \
+#     --exclude-newer 2026-10-28 --output-file runners/comfyui-image/requirements.lock.txt
+#   printf 'pip>=26.2.2\nsetuptools>=84.1.0\nwheel\n' | uv pip compile - --generate-hashes \
+#     --python-version 3.12 --python-platform x86_64-manylinux_2_39 --exclude-newer 2026-10-28 \
+#     -c runners/comfyui-image/requirements.lock.txt \
+#     --output-file runners/comfyui-image/requirements-build.lock.txt
+#
+# Python 3.12 and glibc 2.39 are the image's Ubuntu 24.04 base. Set
+# --exclude-newer to a date at least a week back, so no release younger than
+# that enters the lock.
+
+# Build tooling the image has always upgraded to.
+setuptools>=84.1.0
+wheel
+
+# PyTorch from PyPI, whose 2.13 wheels use CUDA 13.0. The toolkit supplies
+# the shared CUDA runtime used by ComfyUI kernels.
+torch==2.13.0
+torchvision==0.28.0
+torchaudio==2.11.1
+cuda-toolkit==13.0.3.0
+
+# ComfyUI's requirements.txt at COMFYUI_REVISION (torch, torchvision and
+# torchaudio are pinned above).
+comfyui-frontend-package==1.49.6
+comfyui-workflow-templates==0.11.46
+comfyui-embedded-docs==0.5.10
+torchsde
+numpy>=1.25.0
+einops
+transformers>=4.50.3
+tokenizers>=0.13.3
+sentencepiece
+safetensors>=0.4.2
+aiohttp>=3.11.8
+yarl>=1.18.0
+pyyaml
+Pillow>=13.0.0
+scipy
+tqdm
+psutil
+alembic
+SQLAlchemy>=2.0.0
+filelock>=4.2.1
+av>=17.0.0
+comfy-kitchen==0.2.31
+comfy-aimdo==0.4.13
+requests
+simpleeval>=1.0.0
+blake3
+kornia>=0.7.1
+spandrel
+pydantic~=2.0
+pydantic-settings~=2.0
+PyOpenGL>=3.1.8
+comfy-angle

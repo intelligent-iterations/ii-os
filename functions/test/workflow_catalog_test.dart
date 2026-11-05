@@ -182,6 +182,100 @@ void main() {
       );
     });
 
+    test('parses every generation id the dashboard dispatches', () {
+      final catalog = WorkflowCatalog.parse(
+        repository: 'acme-co/example-app',
+        repositoryId: 1,
+        ref: 'dev',
+        sha: 'abc123',
+        content: File('test/fixtures/example-catalog.yaml').readAsStringSync(),
+      );
+
+      final upscale = catalog.find('seedvr2-video-upscale')!;
+      expect(
+        upscale.dispatchWorkflow,
+        '.github/workflows/seedvr2-video-upscale.yml',
+      );
+      expect(upscale.inputs['target_resolution']!.minimum, 1080);
+      expect(upscale.inputs['quality_preset']!.allowedValues, ['quality']);
+      expect(upscale.inputs['preserve_audio']!.required, isTrue);
+      expect(upscale.outputs.single.contentTypes, ['video/mp4']);
+
+      for (final id in const [
+        'image-edit-flux2-klein',
+        'image-create-reference-flux2-klein',
+      ]) {
+        final flux = catalog.find(id)!;
+        expect(
+          flux.dispatchWorkflow,
+          '.github/workflows/flux2-klein-image-edit.yml',
+          reason: id,
+        );
+        expect(flux.inputs.keys, containsAll(['source_asset_id_2', 'prompt']));
+        expect(flux.inputs, isNot(contains('source_asset_id_3')), reason: id);
+        expect(flux.outputs.single.kind, 'image', reason: id);
+      }
+
+      final reference = catalog.find('image-create-reference-qwen-2511')!;
+      expect(
+        reference.dispatchWorkflow,
+        '.github/workflows/qwen-image-edit.yml',
+      );
+      expect(reference.inputs['mode']!.allowedValues, ['edit']);
+      expect(reference.inputs, contains('source_asset_id_3'));
+
+      final classification = catalog.find('classification-open-jev-9b')!;
+      expect(classification.inputs.keys, ['state', 'questions']);
+      expect(classification.outputs.single.kind, 'decisions');
+      expect(classification.outputs.single.contentTypes, ['application/json']);
+      expect(classification.outputs.single.maxBytes, 1048576);
+
+      final render = catalog.find('video-editor-render')!;
+      expect(render.inputs.keys, ['render_manifest']);
+      expect(render.inputs['render_manifest']!.maxLength, 60000);
+      expect(
+        render.outputs.single.contentTypes,
+        containsAll(['video/mp4', 'video/webm']),
+      );
+      expect(
+        render.validateInputs(const {'render_manifest': '{"version":1}'}),
+        {'render_manifest': '{"version":1}'},
+      );
+    });
+
+    test('workflow kit binds each mobile update to its wrapper workflow', () {
+      final catalog = WorkflowCatalog.parse(
+        repository: 'acme-co/example-app',
+        repositoryId: 2,
+        ref: 'main',
+        sha: 'abc123',
+        content: File(
+          '../examples/implementation/.ii-os/catalog.yaml',
+        ).readAsStringSync(),
+      );
+
+      // The app dispatches `<repository>#mobile-update-{android,ios}`.
+      final android = catalog.find('mobile-update-android')!;
+      final ios = catalog.find('mobile-update-ios')!;
+      expect(
+        android.dispatchWorkflow,
+        '.github/workflows/mobile-update-android.yml',
+      );
+      expect(ios.dispatchWorkflow, '.github/workflows/mobile-update-ios.yml');
+      for (final workflow in [android, ios]) {
+        expect(workflow.inputs, isEmpty);
+        expect(workflow.workType, JobWorkType.runtime);
+        expect(workflow.validateInputs(const {}), isEmpty);
+        expect(
+          File(
+            '../examples/implementation/${workflow.dispatchWorkflow}',
+          ).existsSync(),
+          isTrue,
+          reason: workflow.dispatchWorkflow,
+        );
+      }
+    });
+
     test('parses a bounded catalog and validates dispatch inputs', () {
       final catalog = WorkflowCatalog.parse(
         repository: 'acme/media',

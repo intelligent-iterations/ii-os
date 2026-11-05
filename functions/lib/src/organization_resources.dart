@@ -412,6 +412,24 @@ final class OrganizationRunnerPool {
   };
 }
 
+/// Why an Organization Admin cannot save [pool] by hand, or null.
+///
+/// A `fleet` pool's provider pool id is what placement enforces, so it comes
+/// only from the organization's own capacity report through sync. A pool kept
+/// by hand is therefore always `customer`, and it never replaces a reported
+/// pool that happens to share its id.
+String? manualRunnerPoolRefusal(
+  OrganizationResourceCatalog catalog,
+  OrganizationRunnerPool pool,
+) {
+  if (pool.provider != 'customer') return 'runner_provider_not_manual';
+  final existing = catalog.runner(pool.id);
+  if (existing != null && existing.provider != 'customer') {
+    return 'runner_pool_reported';
+  }
+  return null;
+}
+
 OrganizationResourceCatalog _legacyCatalog(
   String organizationId,
   Map<String, Object?> data, {

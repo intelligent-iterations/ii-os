@@ -1,7 +1,9 @@
 import 'api_error.dart';
+import 'provider_contracts/agent_execution.dart';
 import 'ticket_content.dart';
 
 const _activeAgentDispatchStatuses = {
+  ...agentExecutionLiveStatuses,
   'dispatching',
   'dispatched',
   'dispatched_unconfirmed',

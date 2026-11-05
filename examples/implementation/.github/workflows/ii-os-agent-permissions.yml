@@ -1,0 +1,74 @@
+name: ii-os agent permission installer
+run-name: ii-os permission v4 / ${{ inputs.approval_id }} / ${{ inputs.dispatch_id }} / ${{ inputs.profile_id }}@${{ inputs.profile_version }} / ${{ inputs.profile_digest }} / bootstrap@${{ github.sha }}
+
+# Thin dispatch surface. ii-os dispatches it on an immutable
+# ii-os-agent-v4-bootstrap-<sha> tag after two people approve a permission
+# profile. It calls the reviewed installer body pinned at an exact commit of
+# the coordinator repository (II_OS_AGENT_COORDINATOR_REPOSITORY in ii-os).
+#
+# ADOPTION: replace acme-co/example-app with your coordinator repository and
+# the zero commit with the full SHA of a reviewed commit that contains
+# .github/workflows/ii-os-agent-permissions-impl.yml (it is usually this same
+# repository). A reusable workflow reference cannot be a variable, and ii-os
+# rejects any installer body that is not pinned to a commit.
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile_id:
+        description: Validated permission profile identifier
+        required: true
+        type: string
+      profile_json:
+        description: Canonical executable permission profile JSON
+        required: true
+        type: string
+      profile_version:
+        description: Exact validated permission profile version
+        required: true
+        type: string
+      profile_digest:
+        description: Canonical SHA-256 of the exact profile JSON
+        required: true
+        type: string
+      workspace_id:
+        description: ii-os workspace that recorded both human approvals
+        required: true
+        type: string
+      approval_id:
+        description: Immutable ii-os permission approval receipt
+        required: true
+        type: string
+      dispatch_id:
+        description: Exact non-secret ii-os dispatch generation
+        required: true
+        type: string
+      dispatch_fence:
+        description: Monotonic repository installation fence
+        required: true
+        type: string
+
+permissions: {}
+
+# Serialization lives in the pinned body. Declaring the same concurrency group
+# here too would make GitHub cancel the run as a deadlock with its own call.
+
+jobs:
+  install:
+    name: Install the reviewed permission profile
+    permissions:
+      contents: read
+      id-token: write
+    uses: acme-co/example-app/.github/workflows/ii-os-agent-permissions-impl.yml@0000000000000000000000000000000000000000 # reviewed installer body (replace)
+    with:
+      profile_id: ${{ inputs.profile_id }}
+      profile_json: ${{ inputs.profile_json }}
+      profile_version: ${{ inputs.profile_version }}
+      profile_digest: ${{ inputs.profile_digest }}
+      workspace_id: ${{ inputs.workspace_id }}
+      approval_id: ${{ inputs.approval_id }}
+      dispatch_id: ${{ inputs.dispatch_id }}
+      dispatch_fence: ${{ inputs.dispatch_fence }}
+      coordinator_source_sha: ${{ github.sha }}
+    # ii-os verifies that this reviewed body receives the caller's environment secrets.
+    secrets: inherit  # zizmor: ignore[secrets-inherit] -- the commit-pinned reviewed body is the only consumer

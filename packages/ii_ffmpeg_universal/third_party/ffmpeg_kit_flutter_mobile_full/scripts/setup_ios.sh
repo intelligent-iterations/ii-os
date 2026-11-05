@@ -1,6 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
+VERIFY_ONLY=false
+if [ "${1:-}" = --verify-only ] && [ "$#" -eq 1 ]; then
+  VERIFY_ONLY=true
+elif [ "$#" -ne 0 ]; then
+  echo "usage: setup_ios.sh [--verify-only]" >&2
+  exit 64
+fi
+
 VERSION="8.1.2-full"
 DEFAULT_BASE="https://github.com/sk3llo/ffmpeg_kit_flutter/releases/download/${VERSION}"
 BASE_URL="${FFMPEG_KIT_IOS_BASE_URL:-$DEFAULT_BASE}"
@@ -17,6 +25,11 @@ if { [ -z "$LOCAL_ARCHIVE_DIR" ] || [ -z "$LOCAL_ATTESTATION" ]; } &&
 fi
 if [ "$RELEASE_REQUIRED" = true ] && [ "$DEBUG_FALLBACK_ALLOWED" = true ]; then
   echo "Release-engine enforcement cannot be combined with the debug fallback." >&2
+  exit 1
+fi
+if $VERIFY_ONLY && { [ -z "$LOCAL_ARCHIVE_DIR" ] || [ -z "$LOCAL_ATTESTATION" ] ||
+    [ "$DEBUG_FALLBACK_ALLOWED" = true ]; }; then
+  echo "Release verification requires local attested archives without debug fallback." >&2
   exit 1
 fi
 if [ -n "$LOCAL_ARCHIVE_DIR" ]; then
@@ -131,6 +144,10 @@ if $all_installed; then
     fi
   done
   exit 0
+fi
+if $VERIFY_ONLY; then
+  echo "Release verification requires complete installed Frameworks." >&2
+  exit 1
 fi
 if [ -e Frameworks ]; then
   echo "Refusing to replace an incomplete or unrecognized Frameworks directory." >&2

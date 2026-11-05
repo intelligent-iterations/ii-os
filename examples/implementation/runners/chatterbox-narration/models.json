@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "runner": "chatterbox-narration",
+  "profiles": {
+    "chatterbox-turbo": [
+      "chatterbox-turbo/ve.safetensors",
+      "chatterbox-turbo/t3_turbo_v1.safetensors",
+      "chatterbox-turbo/s3gen_meanflow.safetensors",
+      "chatterbox-turbo/conds.pt",
+      "chatterbox-turbo/added_tokens.json",
+      "chatterbox-turbo/merges.txt",
+      "chatterbox-turbo/special_tokens_map.json",
+      "chatterbox-turbo/tokenizer_config.json",
+      "chatterbox-turbo/vocab.json"
+    ]
+  },
+  "files": [
+    {
+      "path": "chatterbox-turbo/ve.safetensors",
+      "size_bytes": 5695784,
+      "sha256": "f0921cab452fa278bc25cd23ffd59d36f816d7dc5181dd1bef9751a7fb61f63c",
+      "source": "https://huggingface.co/ResembleAI/chatterbox-turbo/resolve/749d1c1a46eb10492095d68fbcf55691ccf137cd/ve.safetensors",
+      "license": "MIT"
+    },
+    {
+      "path": "chatterbox-turbo/t3_turbo_v1.safetensors",
+      "size_bytes": 1915480052,
+      "sha256": "fcf1f8c1d651bb7e3acd69ee5be269b4ac10c02980b7708213d598bc9f7cdf87",
+      "source": "https://huggingface.co/ResembleAI/chatterbox-turbo/resolve/749d1c1a46eb10492095d68fbcf55691ccf137cd/t3_turbo_v1.safetensors",
+      "license": "MIT"
+    },
+    {
+      "path": "chatterbox-turbo/s3gen_meanflow.safetensors",
+      "size_bytes": 1064875036,
+      "sha256": "d65cb687a2ed581ee6cc297e919ffefa63386944f42364ae13b78a594945514f",
+      "source": "https://huggingface.co/ResembleAI/chatterbox-turbo/resolve/749d1c1a46eb10492095d68fbcf55691ccf137cd/s3gen_meanflow.safetensors",
+      "license": "MIT"
+    },
+    {
+      "path": "chatterbox-turbo/conds.pt",
+      "size_bytes": 169454,
+      "sha256": "b1852099306fd6a7814eb9d0bd10186caba7249596cc23868f78a0eefbfa5033",
+      "source": "https://huggingface.co/ResembleAI/chatterbox-turbo/resolve/749d1c1a46eb10492095d68fbcf55691ccf137cd/conds.pt",
+      "license": "MIT"
+    },
+    {
+      "path": "chatterbox-turbo/added_tokens.json",
+      "size_bytes": 418,
+      "sha256": "72e4ab6acb0d9309ac3df4b526ae5fd80a2da5bc5ab7bb02d85096a374f69193",
+      "source": "https://huggingface.co/ResembleAI/chatterbox-turbo/resolve/749d1c1a46eb10492095d68fbcf55691ccf137cd/added_tokens.json",
+      "license": "MIT"
+    },
+    {
+      "path": "chatterbox-turbo/merges.txt",
+      "size_bytes": 456318,
+      "sha256": "1ce1664773c50f3e0cc8842619a93edc4624525b728b188a9e0be33b7726adc5",
+      "source": "https://huggingface.co/ResembleAI/chatterbox-turbo/resolve/749d1c1a46eb10492095d68fbcf55691ccf137cd/merges.txt",
+      "license": "MIT"
+    },
+    {
+      "path": "chatterbox-turbo/special_tokens_map.json",
+      "size_bytes": 470,
+      "sha256": "92ba8063bf40aa163eadebbfe0de07c2aebe44cf0d4a9e8726580b0781fd2640",
+      "source": "https://huggingface.co/ResembleAI/chatterbox-turbo/resolve/749d1c1a46eb10492095d68fbcf55691ccf137cd/special_tokens_map.json",
+      "license": "MIT"
+    },
+    {
+      "path": "chatterbox-turbo/tokenizer_config.json",
+      "size_bytes": 3878,
+      "sha256": "bca16a2ac1ddbd78b8d6228f0031884cc74b6ea54b967d6f6d2ebae9ccde23e6",
+      "source": "https://huggingface.co/ResembleAI/chatterbox-turbo/resolve/749d1c1a46eb10492095d68fbcf55691ccf137cd/tokenizer_config.json",
+      "license": "MIT"
+    },
+    {
+      "path": "chatterbox-turbo/vocab.json",
+      "size_bytes": 999186,
+      "sha256": "f6bd25a65e4e63ca31360e9fb11c7e4f9a391a78385d640acd814092dd6eee4f",
+      "source": "https://huggingface.co/ResembleAI/chatterbox-turbo/resolve/749d1c1a46eb10492095d68fbcf55691ccf137cd/vocab.json",
+      "license": "MIT"
+    }
+  ]
+}

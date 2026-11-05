@@ -198,7 +198,10 @@ String classificationFailureMessage(String? errorCode) => switch (errorCode) {
     'No GPU host could take the classification run. Try again in a few '
         'minutes.',
   'classification_runtime_unavailable' =>
-    'The open JEV runtime is not installed on a Fleet GPU host yet.',
+    'No runner has the classification model installed yet.',
+  'classification_model_missing' =>
+    'The classification model is not installed on your GPU runner yet. '
+        'Install it there, then try again.',
   'classification_workflow_cancelled' =>
     'The classification run was cancelled.',
   'classification_result_unreadable' =>

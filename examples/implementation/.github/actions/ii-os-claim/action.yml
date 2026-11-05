@@ -1,0 +1,69 @@
+# Claim one ii-os request and stage it for a model container.
+#
+# ii-os dispatches a workflow with only `ii_request_id`. This action proves the
+# run to ii-os, then writes the validated inputs and any source assets into a
+# private run directory: `<work-dir>/in/` (inputs.json, sources.json,
+# sources/NN.<ext>) and an empty `<work-dir>/out/`. Signed source URLs are used
+# once, here, and never written to disk or logs.
+#
+# Requires python3 on the runner. Needs no token permissions of its own.
+name: ii-os claim
+description: Claim an ii-os workflow request and stage its inputs in a private run directory.
+
+inputs:
+  connector-url:
+    description: The ii-os API base (vars.II_OS_CONNECTOR_URL).
+    required: true
+  token:
+    description: The workflow token ii-os issued for this repository (secrets.II_OS_TOKEN).
+    required: true
+  request-id:
+    description: The ii_request_id ii-os dispatched.
+    required: true
+  max-sources:
+    description: The most source assets this workflow reads (0 for none).
+    required: false
+    default: "0"
+  source-kinds:
+    description: Comma-separated source kinds this workflow reads (image, video, audio).
+    required: false
+    default: ""
+
+outputs:
+  work-dir:
+    description: The private run directory holding in/ and out/.
+    value: ${{ steps.claim.outputs.work-dir }}
+  upload-provider:
+    description: The upload provider the workspace uses (gcp_wif).
+    value: ${{ steps.claim.outputs.upload-provider }}
+  bucket:
+    description: The workspace bucket artifacts go to.
+    value: ${{ steps.claim.outputs.bucket }}
+  object-prefix:
+    description: The request's object prefix inside the bucket.
+    value: ${{ steps.claim.outputs.object-prefix }}
+  workload-identity-provider:
+    description: The workload identity provider for the upload credential.
+    value: ${{ steps.claim.outputs.workload-identity-provider }}
+  service-account:
+    description: The service account the upload credential impersonates.
+    value: ${{ steps.claim.outputs.service-account }}
+  source-count:
+    description: How many source assets were staged.
+    value: ${{ steps.claim.outputs.source-count }}
+
+runs:
+  using: composite
+  steps:
+    - name: Claim the ii-os request
+      id: claim
+      shell: bash
+      env:
+        II_OS_CONNECTOR_URL: ${{ inputs.connector-url }}
+        II_OS_TOKEN: ${{ inputs.token }}
+        II_REQUEST_ID: ${{ inputs.request-id }}
+        MAX_SOURCES: ${{ inputs.max-sources }}
+        SOURCE_KINDS: ${{ inputs.source-kinds }}
+      run: >-
+        python3 "${GITHUB_ACTION_PATH}/../../../scripts/ii_os_claim.py" claim
+        --max-sources "${MAX_SOURCES}" --source-kinds "${SOURCE_KINDS}"

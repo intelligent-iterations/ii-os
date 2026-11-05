@@ -23,6 +23,7 @@ extension AgentExecutionStateStore on AgentActivationStore {
       try {
         profile = AgentPermissionProfile.parse(
           activation?['permissionProfileSnapshot'],
+          engines: engines,
         );
       } on ApiError {
         throw _executionStateInvalid;

@@ -6,6 +6,8 @@ class _OrganizationResourcesPage extends StatelessWidget {
     required this.model,
     required this.embedded,
     required this.onAddGcp,
+    required this.onAddRunner,
+    required this.onEditRunner,
     required this.onSyncRunner,
     required this.onPromoteLegacy,
   });
@@ -14,6 +16,8 @@ class _OrganizationResourcesPage extends StatelessWidget {
   final OrganizationResourcesViewModel model;
   final bool embedded;
   final VoidCallback onAddGcp;
+  final VoidCallback onAddRunner;
+  final ValueChanged<OrganizationRunnerPoolModel> onEditRunner;
   final Future<bool> Function() onSyncRunner;
   final Future<bool> Function() onPromoteLegacy;
 
@@ -46,7 +50,11 @@ class _OrganizationResourcesPage extends StatelessWidget {
           _OrganizationResourcePools(
             organization: organization,
             busy: model.isBusy,
+            runnerBlockedReason: model.runnerManageBlockedReason,
+            runnerError: model.runnerErrorMessage,
             onAddGcp: onAddGcp,
+            onAddRunner: onAddRunner,
+            onEditRunner: onEditRunner,
             onSyncRunner: onSyncRunner,
           ),
         ],
@@ -138,13 +146,21 @@ class _OrganizationResourcePools extends StatelessWidget {
   const _OrganizationResourcePools({
     required this.organization,
     required this.busy,
+    required this.runnerBlockedReason,
+    required this.runnerError,
     required this.onAddGcp,
+    required this.onAddRunner,
+    required this.onEditRunner,
     required this.onSyncRunner,
   });
 
   final OrganizationAccess organization;
   final bool busy;
+  final String? runnerBlockedReason;
+  final String? runnerError;
   final VoidCallback onAddGcp;
+  final VoidCallback onAddRunner;
+  final ValueChanged<OrganizationRunnerPoolModel> onEditRunner;
   final Future<bool> Function() onSyncRunner;
 
   @override
@@ -196,31 +212,20 @@ class _OrganizationResourcePools extends StatelessWidget {
           action: null,
         ),
         IiOsGap.vMd,
-        _PoolCard(
-          title: 'Runner pools',
-          icon: LucideIcons.server,
-          empty: 'No shared runner pools yet.',
-          items: [
-            for (final item in resources.runners)
-              _ResourceTile(
-                title: item.name,
-                subtitle:
-                    '${item.provider} · ${item.providerPoolId} · ${item.maxCpu} CPU · ${item.maxRamMiB} MiB RAM',
-                active: item.active,
-              ),
-          ],
-          action: organization.can('org.runners.manage')
-              ? _AddResourceButton(
-                  label: 'Sync Fleet capacity',
-                  enabled: !busy,
-                  onPressed: onSyncRunner,
-                )
-              : null,
+        _RunnerPoolsCard(
+          runners: resources.runners,
+          blockedReason: runnerBlockedReason,
+          error: runnerError,
+          busy: busy,
+          onAdd: onAddRunner,
+          onEdit: onEditRunner,
+          onSync: onSyncRunner,
         ),
         IiOsGap.vSm,
         Text(
-          'GitHub-hosted runners are not enabled here. Fleet sync reads the '
-          'organization\u2019s current provider report and never creates a host.',
+          'ii-os never creates runners or turns on GitHub-hosted runners. '
+          'Your workflows choose where they run; each pool sets what a '
+          'workspace may ask for.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
@@ -254,6 +259,8 @@ class _PoolCard extends StatelessWidget {
     required this.empty,
     required this.items,
     required this.action,
+    this.notice,
+    this.footer,
   });
 
   final String title;
@@ -262,6 +269,10 @@ class _PoolCard extends StatelessWidget {
   final List<Widget> items;
   final Widget? action;
 
+  /// Shown directly under the header, beside [action]: why it is disabled.
+  final String? notice;
+  final Widget? footer;
+
   @override
   Widget build(BuildContext context) => Card(
     child: Padding(
@@ -269,19 +280,17 @@ class _PoolCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Icon(icon, size: IiOsIconSize.md),
-              IiOsGap.hXs,
-              Expanded(child: SectionTitle(title)),
-              ?action,
-            ],
-          ),
+          _PoolCardHeader(title: title, icon: icon, action: action),
+          if (notice case final text?) ...[
+            IiOsGap.vXs,
+            Text(text, style: Theme.of(context).textTheme.bodySmall),
+          ],
           IiOsGap.vSm,
           if (items.isEmpty)
             Text(empty, style: Theme.of(context).textTheme.bodySmall)
           else
             ...items,
+          if (footer case final widget?) ...[IiOsGap.vXs, widget],
         ],
       ),
     ),
@@ -305,5 +314,39 @@ class _ResourceTile extends StatelessWidget {
     title: Text(title),
     subtitle: Text(subtitle),
     trailing: StatusPill(active ? 'connected' : 'disabled'),
+  );
+}
+
+/// The card title with its action beside it, or under it on a narrow screen
+/// so the action never overflows the card.
+class _PoolCardHeader extends StatelessWidget {
+  const _PoolCardHeader({
+    required this.title,
+    required this.icon,
+    required this.action,
+  });
+
+  final String title;
+  final IconData icon;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final stacked = constraints.maxWidth < IiOsBreakpoints.pairedFields;
+      final heading = Row(
+        children: [
+          Icon(icon, size: IiOsIconSize.md),
+          IiOsGap.hXs,
+          Expanded(child: SectionTitle(title)),
+          if (!stacked) ?action,
+        ],
+      );
+      if (!stacked || action == null) return heading;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [heading, IiOsGap.vXs, action!],
+      );
+    },
   );
 }

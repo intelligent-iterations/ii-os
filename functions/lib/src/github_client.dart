@@ -41,6 +41,7 @@ final class GitHubClient {
     GitHubQaDeploymentCache? qaDeploymentCache,
     this.agentTrustedSourceManifest =
         const AgentTrustedSourceManifest.disabled(),
+    this.agentEngines = AgentEngineCatalog.codexOnly,
   }) : _transport = GitHubAppTransport(
          appId: appId,
          privateKey: privateKey,
@@ -51,6 +52,7 @@ final class GitHubClient {
   final GitHubAppTransport _transport;
   final GitHubQaDeploymentCache _qaDeploymentCache;
   final AgentTrustedSourceManifest agentTrustedSourceManifest;
+  final AgentEngineCatalog agentEngines;
 
   Future<Set<String>> grantedInstallationPermissionEnvelope(
     Workspace workspace,

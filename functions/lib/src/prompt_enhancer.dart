@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'creative_surface.dart';
 import 'domain.dart';
 import 'model_bibles.dart';
+import 'prompt_enhancement_secret.dart';
 
 part 'prompt_enhancer_contracts.dart';
 
@@ -321,7 +322,11 @@ final class DeepSeekPromptEnhancer {
     if (config.apiKeySecretVersion.isEmpty) return null;
     try {
       final secret = (await _secretReader(config.apiKeySecretVersion)).trim();
-      return _usableKey(secret) ? secret : null;
+      return boundPromptEnhancementKey(
+        secret,
+        organizationId: workspace.organizationId,
+        workspaceId: workspace.id,
+      );
     } on Object {
       return null;
     }

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -99,10 +101,39 @@ AppController pageController({
 /// while older page goldens intentionally retain their legacy workspace
 /// fixture. Keeping the richer fixture local to those pages avoids changing
 /// unrelated visual baselines.
-AppController seedResourcePageController(AppController controller) {
-  controller.session = SessionModel.fromJson(_resourceSessionFixture);
+///
+/// [withCustomerRunners] adds a pool the organization keeps by hand, so the
+/// organization resources page shows both kinds of runner pool.
+AppController seedResourcePageController(
+  AppController controller, {
+  bool withCustomerRunners = false,
+}) {
+  controller.session = SessionModel.fromJson(
+    withCustomerRunners
+        ? _withCustomerRunners(_resourceSessionFixture)
+        : _resourceSessionFixture,
+  );
   controller.selectedAccess = controller.session!.workspaces.single;
   return controller;
+}
+
+Map<String, Object?> _withCustomerRunners(Map<String, Object?> fixture) {
+  final session = jsonDecode(jsonEncode(fixture)) as Map<String, Object?>;
+  final access = (session['organizations']! as List<Object?>).single!;
+  final organization =
+      (access as Map<String, Object?>)['organization']! as Map<String, Object?>;
+  (organization['runnerPools']! as List<Object?>).add({
+    'id': 'runner_studio_runners',
+    'name': 'Studio runners',
+    'provider': 'customer',
+    'providerPoolId': 'studio-runners',
+    'capabilities': ['gpu.nvidia', 'runtime-docker'],
+    'maxCpu': 8,
+    'maxRamMiB': 32768,
+    'maxConcurrent': 1,
+    'active': true,
+  });
+  return session;
 }
 
 final _resourceSessionFixture = <String, Object?>{

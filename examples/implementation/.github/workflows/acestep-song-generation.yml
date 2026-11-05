@@ -1,0 +1,207 @@
+# Song generation for the catalog id song-create-acestep-xl-sft with ACE-Step
+# 1.5. The claimed generation_profile picks the model profile: draft-120 (XL
+# Turbo, up to 120 s) or quality-60 (XL Turbo plus the 5Hz LM 4B planner, up
+# to 60 s). Publishes song.mp3 and song.wav.
+#
+# Settings: II_OS_CONNECTOR_URL, II_OS_TOKEN, II_OS_GPU_RUNS_ON,
+# II_OS_CPU_RUNS_ON, II_OS_MODEL_ROOT, II_OS_RUNNER_IMAGE_ACESTEP_SONG.
+# See docs/generation.md and runners/acestep-song/README.md.
+name: ii-os song generation
+run-name: ii-os song ${{ inputs.ii_request_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      ii_request_id:
+        description: ii-os request identity
+        required: true
+        type: string
+      ii_payload_mode:
+        description: Payload delivery contract (inputs are always read from the claim)
+        required: false
+        type: string
+        default: claim
+      prompt:
+        description: Delivered through the ii-os claim; this event value is ignored
+        required: false
+        type: string
+        default: ""
+      lyrics:
+        description: Delivered through the ii-os claim; this event value is ignored
+        required: false
+        type: string
+        default: ""
+      instrumental:
+        description: Delivered through the ii-os claim; this event value is ignored
+        required: false
+        type: string
+        default: ""
+      duration_seconds:
+        description: Delivered through the ii-os claim; this event value is ignored
+        required: false
+        type: string
+        default: ""
+      generation_profile:
+        description: Delivered through the ii-os claim; this event value is ignored
+        required: false
+        type: string
+        default: ""
+      bpm:
+        description: Delivered through the ii-os claim; this event value is ignored
+        required: false
+        type: string
+        default: ""
+      key_scale:
+        description: Delivered through the ii-os claim; this event value is ignored
+        required: false
+        type: string
+        default: ""
+      time_signature:
+        description: Delivered through the ii-os claim; this event value is ignored
+        required: false
+        type: string
+        default: ""
+      vocal_language:
+        description: Delivered through the ii-os claim; this event value is ignored
+        required: false
+        type: string
+        default: ""
+      seed:
+        description: Delivered through the ii-os claim; this event value is ignored
+        required: false
+        type: string
+        default: ""
+
+permissions: {}
+
+concurrency:
+  group: ii-os-song-${{ inputs.ii_request_id }}
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    name: Generate the song
+    runs-on: ${{ fromJSON(vars.II_OS_GPU_RUNS_ON) }}
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      RUNNER_NAME: acestep-song
+      RUNNER_TASK: text-to-song
+    steps:
+      - name: Check out this workflow's commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Check settings
+        shell: bash
+        env:
+          II_OS_CONNECTOR_URL: ${{ vars.II_OS_CONNECTOR_URL }}
+          II_OS_TOKEN: ${{ secrets.II_OS_TOKEN }}
+          II_OS_MODEL_ROOT: ${{ vars.II_OS_MODEL_ROOT }}
+          II_OS_RUNNER_IMAGE_ACESTEP_SONG: ${{ vars.II_OS_RUNNER_IMAGE_ACESTEP_SONG }}
+        run: >-
+          python3 scripts/ii_os_settings.py check --connector --model-root
+          --runner-image II_OS_RUNNER_IMAGE_ACESTEP_SONG
+
+      - name: Claim the request
+        id: claim
+        uses: ./.github/actions/ii-os-claim
+        with:
+          connector-url: ${{ vars.II_OS_CONNECTOR_URL }}
+          token: ${{ secrets.II_OS_TOKEN }}
+          request-id: ${{ inputs.ii_request_id }}
+          max-sources: "0"
+
+      - name: Plan the run
+        id: plan
+        shell: bash
+        env:
+          WORK_DIR: ${{ steps.claim.outputs.work-dir }}
+        run: >-
+          python3 "runners/${RUNNER_NAME}/entrypoint.py" plan --task "${RUNNER_TASK}"
+          --input-dir "${WORK_DIR}/in" --github-output "${GITHUB_OUTPUT}"
+
+      - name: Check the model folder
+        shell: bash
+        env:
+          II_OS_MODEL_ROOT: ${{ vars.II_OS_MODEL_ROOT }}
+          PROFILE: ${{ steps.plan.outputs.profile }}
+        run: >-
+          python3 scripts/ii_os_model_folder.py check --manifest "runners/${RUNNER_NAME}/models.json"
+          --model-root "${II_OS_MODEL_ROOT}" --profile "${PROFILE}"
+
+      - name: Generate in the isolated runner container
+        shell: bash
+        env:
+          II_OS_MODEL_ROOT: ${{ vars.II_OS_MODEL_ROOT }}
+          RUNNER_IMAGE: ${{ vars.II_OS_RUNNER_IMAGE_ACESTEP_SONG }}
+          WORK_DIR: ${{ steps.claim.outputs.work-dir }}
+        run: >-
+          python3 scripts/ii_os_run_container.py run --runner "${RUNNER_NAME}" --gpu
+          --image "${RUNNER_IMAGE}" --model-root "${II_OS_MODEL_ROOT}" --work-dir "${WORK_DIR}"
+          -- run --task "${RUNNER_TASK}"
+
+      - name: Publish the song
+        id: complete
+        uses: ./.github/actions/ii-os-complete
+        with:
+          connector-url: ${{ vars.II_OS_CONNECTOR_URL }}
+          token: ${{ secrets.II_OS_TOKEN }}
+          request-id: ${{ inputs.ii_request_id }}
+          work-dir: ${{ steps.claim.outputs.work-dir }}
+          bucket: ${{ steps.claim.outputs.bucket }}
+          object-prefix: ${{ steps.claim.outputs.object-prefix }}
+          workload-identity-provider: ${{ steps.claim.outputs.workload-identity-provider }}
+          service-account: ${{ steps.claim.outputs.service-account }}
+          allowed-content-types: audio/mpeg,audio/wav
+          max-bytes: "1073741824"
+
+      - name: Report a failure
+        if: ${{ always() && steps.claim.outcome != 'skipped' && steps.complete.outcome != 'success' }}
+        uses: ./.github/actions/ii-os-complete
+        with:
+          status: failed
+          connector-url: ${{ vars.II_OS_CONNECTOR_URL }}
+          token: ${{ secrets.II_OS_TOKEN }}
+          request-id: ${{ inputs.ii_request_id }}
+          work-dir: ${{ steps.claim.outputs.work-dir }}
+          job-status: ${{ job.status }}
+          error-code: song_generation_failed
+          cancelled-error-code: song_generation_cancelled
+
+      - name: Remove the container and the run directory
+        if: ${{ always() }}
+        shell: bash
+        env:
+          II_REQUEST_ID: ${{ inputs.ii_request_id }}
+        run: |
+          python3 scripts/ii_os_run_container.py remove --runner "${RUNNER_NAME}"
+          python3 scripts/ii_os_claim.py cleanup
+
+  report-terminal-status:
+    name: Report a run that could not finish
+    needs: generate
+    if: ${{ always() && needs.generate.result != 'success' }}
+    runs-on: ${{ fromJSON(vars.II_OS_CPU_RUNS_ON) }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out this workflow's commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Report the terminal status
+        uses: ./.github/actions/ii-os-complete
+        with:
+          status: failed
+          connector-url: ${{ vars.II_OS_CONNECTOR_URL }}
+          token: ${{ secrets.II_OS_TOKEN }}
+          request-id: ${{ inputs.ii_request_id }}
+          job-status: ${{ needs.generate.result }}
+          error-code: song_generation_failed
+          cancelled-error-code: song_generation_cancelled

@@ -1,7 +1,11 @@
 part of 'organization_resources_dialogs.dart';
 
+/// Describes runners the organization already runs. With [existing] it edits
+/// that pool, including whether workspaces may use it.
 class _RunnerPoolDialog extends StatefulWidget {
-  const _RunnerPoolDialog();
+  const _RunnerPoolDialog({this.existing});
+
+  final OrganizationRunnerPoolModel? existing;
 
   @override
   State<_RunnerPoolDialog> createState() => _RunnerPoolDialogState();
@@ -9,20 +13,28 @@ class _RunnerPoolDialog extends StatefulWidget {
 
 class _RunnerPoolDialogState extends State<_RunnerPoolDialog> {
   final _form = GlobalKey<FormState>();
-  final _id = TextEditingController();
-  final _name = TextEditingController();
-  final _providerPoolId = TextEditingController();
-  final _capabilities = TextEditingController();
-  final _cpu = TextEditingController();
-  final _ram = TextEditingController();
-  final _concurrent = TextEditingController();
-  String _provider = 'fleet';
+  late final _name = TextEditingController(text: widget.existing?.name);
+  late final _group = TextEditingController(
+    text: widget.existing?.providerPoolId,
+  );
+  late final _capabilities = TextEditingController(
+    text: (widget.existing?.capabilities.toList()?..sort())?.join(', '),
+  );
+  late final _cpu = TextEditingController(
+    text: _number(widget.existing?.maxCpu),
+  );
+  late final _ram = TextEditingController(
+    text: _number(widget.existing?.maxRamMiB),
+  );
+  late final _concurrent = TextEditingController(
+    text: _number(widget.existing?.maxConcurrent),
+  );
+  late bool _active = widget.existing?.active ?? true;
 
   @override
   void dispose() {
-    _id.dispose();
     _name.dispose();
-    _providerPoolId.dispose();
+    _group.dispose();
     _capabilities.dispose();
     _cpu.dispose();
     _ram.dispose();
@@ -31,145 +43,144 @@ class _RunnerPoolDialogState extends State<_RunnerPoolDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Add organization runner pool'),
-    content: SizedBox(
-      width: IiOsWidths.wideForm,
-      child: Form(
-        key: _form,
-        child: SingleChildScrollView(
-          child: _RunnerPoolFields(
-            id: _id,
-            name: _name,
-            providerPoolId: _providerPoolId,
-            capabilities: _capabilities,
-            cpu: _cpu,
-            ram: _ram,
-            concurrent: _concurrent,
-            provider: _provider,
-            onProviderChanged: (value) => setState(() => _provider = value),
+  Widget build(BuildContext context) {
+    final editing = widget.existing != null;
+    return AlertDialog(
+      title: Text(editing ? 'Edit your runners' : 'Add your runners'),
+      content: SizedBox(
+        width: IiOsWidths.wideForm,
+        child: Form(
+          key: _form,
+          child: SingleChildScrollView(
+            child: _RunnerPoolFields(
+              name: _name,
+              group: _group,
+              capabilities: _capabilities,
+              cpu: _cpu,
+              ram: _ram,
+              concurrent: _concurrent,
+              active: editing ? _active : null,
+              onActiveChanged: (value) => setState(() => _active = value),
+            ),
           ),
         ),
       ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
-      ),
-      FilledButton(onPressed: _submit, child: const Text('Add runner pool')),
-    ],
-  );
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: Text(editing ? 'Save changes' : 'Add runners'),
+        ),
+      ],
+    );
+  }
 
   void _submit() {
     if (!_form.currentState!.validate()) return;
     Navigator.pop(
       context,
-      OrganizationRunnerPoolDraft(
-        id: _id.text.trim(),
+      CustomerRunnerPoolInput(
         name: _name.text.trim(),
-        provider: _provider,
-        providerPoolId: _providerPoolId.text.trim(),
-        capabilities: _capabilities.text
-            .split(',')
-            .map((item) => item.trim())
-            .where((item) => item.isNotEmpty)
-            .toSet(),
+        runnerGroup: _group.text.trim(),
+        capabilities: parseRunnerCapabilities(_capabilities.text),
         maxCpu: int.parse(_cpu.text.trim()),
         maxRamMiB: int.parse(_ram.text.trim()),
         maxConcurrent: int.parse(_concurrent.text.trim()),
+        active: _active,
       ),
     );
   }
 }
 
+String? _number(int? value) => value == null ? null : '$value';
+
 class _RunnerPoolFields extends StatelessWidget {
   const _RunnerPoolFields({
-    required this.id,
     required this.name,
-    required this.providerPoolId,
+    required this.group,
     required this.capabilities,
     required this.cpu,
     required this.ram,
     required this.concurrent,
-    required this.provider,
-    required this.onProviderChanged,
+    required this.active,
+    required this.onActiveChanged,
   });
 
-  final TextEditingController id;
   final TextEditingController name;
-  final TextEditingController providerPoolId;
+  final TextEditingController group;
   final TextEditingController capabilities;
   final TextEditingController cpu;
   final TextEditingController ram;
   final TextEditingController concurrent;
-  final String provider;
-  final ValueChanged<String> onProviderChanged;
+
+  /// Null while adding: a new pool is always available.
+  final bool? active;
+  final ValueChanged<bool> onActiveChanged;
 
   @override
   Widget build(BuildContext context) => Column(
     mainAxisSize: MainAxisSize.min,
     children: [
       const Text(
-        'Runner pools describe Fleet-managed or customer capacity. This does '
-        'not enable GitHub-hosted runner spending.',
+        'Describe runners you already run, such as your self-hosted GitHub '
+        'Actions runners. Your workflows still choose where they run; these '
+        'limits cap what each workspace you grant them to may ask for.',
       ),
       IiOsGap.vMd,
       TextFormField(
-        controller: id,
-        decoration: const InputDecoration(
-          labelText: 'Resource ID',
-          hintText: 'runner_gpu',
-        ),
-        validator: _idValidator,
-      ),
-      IiOsGap.vSm,
-      TextFormField(
         controller: name,
-        decoration: const InputDecoration(labelText: 'Display name'),
-        validator: _nameValidator,
+        decoration: const InputDecoration(
+          labelText: 'Name',
+          hintText: 'GPU runners',
+        ),
+        validator: _runnerNameValidator,
       ),
       IiOsGap.vSm,
       TextFormField(
-        controller: providerPoolId,
+        controller: group,
         decoration: const InputDecoration(
-          labelText: 'Provider pool ID',
-          hintText: 'personal-alice',
-          helperText: 'Exact Fleet pool used for placement; never a host ID.',
+          labelText: 'Runner group',
+          hintText: 'gpu-runners',
+          helperText: 'The name your workflows use for these runners.',
         ),
-        validator: _nameValidator,
-      ),
-      IiOsGap.vSm,
-      DropdownButtonFormField<String>(
-        initialValue: provider,
-        decoration: const InputDecoration(labelText: 'Provider'),
-        items: const [
-          DropdownMenuItem(value: 'fleet', child: Text('Fleet')),
-          DropdownMenuItem(value: 'customer', child: Text('Customer')),
-        ],
-        onChanged: (value) {
-          if (value != null) onProviderChanged(value);
-        },
+        validator: _runnerGroupValidator,
       ),
       IiOsGap.vSm,
       TextFormField(
         controller: capabilities,
         decoration: const InputDecoration(
-          labelText: 'Capabilities (comma separated)',
-          hintText: 'docker, gpu.nvidia',
+          labelText: 'Capabilities',
+          hintText: 'runtime-docker, gpu.nvidia',
+          helperText: 'Separate capabilities with commas.',
         ),
-        validator: _nameValidator,
+        validator: _capabilitiesValidator,
       ),
       IiOsGap.vSm,
       Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(child: _PositiveNumberField(cpu, 'Max CPU')),
+          Expanded(child: _PositiveNumberField(cpu, 'CPU cores')),
           IiOsGap.hSm,
-          Expanded(child: _PositiveNumberField(ram, 'Max RAM MiB')),
+          Expanded(child: _PositiveNumberField(ram, 'Memory (MiB)')),
           IiOsGap.hSm,
-          Expanded(child: _PositiveNumberField(concurrent, 'Concurrent')),
+          Expanded(child: _PositiveNumberField(concurrent, 'Jobs at once')),
         ],
       ),
+      if (active case final value?) ...[
+        IiOsGap.vSm,
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: value,
+          onChanged: onActiveChanged,
+          title: const Text('Workspaces can use these runners'),
+          subtitle: const Text(
+            'Turn this off to stop workspaces starting new jobs on them.',
+          ),
+        ),
+      ],
     ],
   );
 }

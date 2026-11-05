@@ -53,6 +53,12 @@ params:
   - name: II_OS_AGENT_TRUSTED_SOURCE_MANIFEST_BASE64
     type: string
     default: ""
+  - name: II_OS_RUNNER_CAPACITY_PROVIDER
+    type: string
+    default: none
+  - name: II_OS_LOCAL_AGENT_ENGINES_BASE64
+    type: string
+    default: ""
   - name: II_OS_AUTH_EMAIL_FROM_ADDRESS
     type: string
     default: ""

@@ -146,11 +146,28 @@ final class OrganizationResourceStore {
     });
   }
 
+  /// Saves one runner pool an Organization Admin keeps by hand.
   Future<OrganizationResourceCatalog> saveRunnerPool({
     required String organizationId,
     required OrganizationRunnerPool runnerPool,
-  }) =>
-      _mutate(organizationId, (catalog, _) => catalog.upsertRunner(runnerPool));
+  }) => _mutate(organizationId, (catalog, _) {
+    switch (manualRunnerPoolRefusal(catalog, runnerPool)) {
+      case 'runner_provider_not_manual':
+        throw const ApiError(
+          400,
+          'runner_provider_not_manual',
+          'Runners added by hand use the customer provider.',
+        );
+      case final String code:
+        throw ApiError(
+          409,
+          code,
+          'This runner pool comes from the capacity report; sync to change it.',
+        );
+      case null:
+        return catalog.upsertRunner(runnerPool);
+    }
+  });
 
   Future<OrganizationResourceCatalog> saveRunnerPools({
     required String organizationId,

@@ -555,9 +555,22 @@ void main() {
   });
 
   group('credential resolution', () {
+    String boundSecret({
+      String organizationId = 'organization-1',
+      String workspaceId = 'workspace-1',
+      String purpose = 'ii-os-deepseek',
+    }) => jsonEncode({
+      'schemaVersion': 1,
+      'purpose': purpose,
+      'organizationId': organizationId,
+      'workspaceId': workspaceId,
+      'apiKey': 'sk-from-secret-manager',
+    });
+
     Workspace workspaceWith(PromptEnhancementConfig? config) => Workspace(
       id: 'workspace-1',
       name: 'Workspace',
+      organizationId: 'organization-1',
       environment: 'dev',
       githubInstallationId: null,
       repositories: const [],
@@ -628,7 +641,7 @@ void main() {
       final result =
           await DeepSeekPromptEnhancer(
             httpClient: clientCapturing(authorizations),
-            secretReader: (_) async => 'sk-from-secret-manager',
+            secretReader: (_) async => boundSecret(),
             storedKeyReader: (_) async => null,
           ).enhance(
             workspace: workspaceWith(
@@ -648,6 +661,37 @@ void main() {
       expect(result.status, 'enhanced');
       expect(authorizations.single, 'Bearer sk-from-secret-manager');
     });
+
+    for (final secret in <String, String Function()>{
+      'raw unbound credential': () => 'sk-another-tenant-key',
+      'another organization': () =>
+          boundSecret(organizationId: 'organization-2'),
+      'another workspace': () => boundSecret(workspaceId: 'workspace-2'),
+      'another credential purpose': () => boundSecret(purpose: 'github-app'),
+      'an unrelated JSON secret': () => jsonEncode({'privateKey': 'synthetic'}),
+    }.entries) {
+      test('never forwards ${secret.key} to the provider', () async {
+        final authorizations = <String>[];
+        final result =
+            await DeepSeekPromptEnhancer(
+              httpClient: clientCapturing(authorizations),
+              secretReader: (_) async => secret.value(),
+            ).enhance(
+              workspace: workspaceWith(
+                const PromptEnhancementConfig(
+                  enabled: true,
+                  apiKeySecretVersion: 'projects/p/secrets/key/versions/latest',
+                ),
+              ),
+              originalPrompt: 'a portrait',
+              context: context,
+              maxPromptLength: 4000,
+            );
+        expect(authorizations, isEmpty);
+        expect(result.prompt, 'a portrait');
+        expect(result.fallbackReason, 'key_unavailable');
+      });
+    }
 
     test('keeps the original text when no credential resolves', () async {
       final result =

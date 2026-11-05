@@ -1,0 +1,11 @@
+{
+  "codexExecutable": "/usr/local/bin/codex",
+  "executablePath": "/usr/local/bin:/usr/bin:/bin",
+  "hosting": "github",
+  "isolation": "docker",
+  "namespacePolicyImage": "registry.example.com/acme-co/ii-os-agent-worker@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "runtimeRevision": "b27525b30fc7c709b41fc8c62de4a4eb699f9827",
+  "schemaVersion": 1,
+  "workspace": "/workspace",
+  "workspaceHelperImage": "registry.example.com/acme-co/ii-os-agent-worker@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+}
